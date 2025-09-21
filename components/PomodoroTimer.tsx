@@ -1,4 +1,3 @@
-//components/PomodoroTimer.tsx
 "use client"
 
 import { useState, useEffect, useCallback } from 'react'
@@ -6,6 +5,7 @@ import { useTheme } from '@/components/ThemeContext'
 import { useAudioTones } from '@/hooks/useAudioTones'
 import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/lib/supabaseClient'
+import { useAnalyticsStore } from '@/lib/analyticsStore'
 
 interface PomodoroTimerProps {
   onTimerComplete?: (sessionType: 'work' | 'break' | 'longBreak') => void
@@ -18,6 +18,7 @@ export default function PomodoroTimer({ onTimerComplete, compact = false }: Pomo
   const { theme } = useTheme()
   const { user } = useAuth()
   const { playStartTone, playStopTone } = useAudioTones()
+  const { addFocusSession, updateDailyStats } = useAnalyticsStore()
   
   // Timer settings (in seconds)
   const [WORK_TIME, setWorkTime] = useState(25 * 60)
@@ -32,7 +33,6 @@ export default function PomodoroTimer({ onTimerComplete, compact = false }: Pomo
   const [totalSessions, setTotalSessions] = useState<number>(0)
   const [isLoading, setIsLoading] = useState(true)
 
-  // Helper function to validate UUID format
   const isValidUUID = (uuid: string): boolean => {
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     return uuidRegex.test(uuid);
@@ -54,8 +54,7 @@ export default function PomodoroTimer({ onTimerComplete, compact = false }: Pomo
       }
       
       try {
-        // Validate the user ID is a valid UUID
-        if (!user.id || !isValidUUID(user.id)) {
+        if (!isValidUUID(user.id)) {
           console.error('Invalid user ID format');
           setDefaultTimes();
           setIsLoading(false);
@@ -95,24 +94,24 @@ export default function PomodoroTimer({ onTimerComplete, compact = false }: Pomo
     loadUserPreferences()
   }, [user])
 
-  // Track focus session
+  // Track focus session with proper analytics
   const trackFocusSession = async (sessionType: string, duration: number) => {
     if (!user) return
     
     try {
-      // Get completed tasks count for this session
+      // Get completed tasks in the last 30 minutes
       const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString()
       const { data: tasks } = await supabase
         .from('tasks')
         .select('id')
         .eq('user_id', user.id)
         .eq('completed', true)
-        .gte('completed_at', thirtyMinutesAgo)
+        .gte('updated_at', thirtyMinutesAgo)
       
       const completedTasks = tasks ? tasks.length : 0
       
-      // Record the focus session
-      await supabase
+      // Record the focus session in Supabase
+      const { data: session } = await supabase
         .from('focus_sessions')
         .insert([{
           user_id: user.id,
@@ -120,6 +119,17 @@ export default function PomodoroTimer({ onTimerComplete, compact = false }: Pomo
           session_type: sessionType,
           completed_tasks: completedTasks
         }])
+        .select()
+        .single()
+
+      if (session) {
+        // Update analytics store
+        const today = new Date().toISOString().split('T')[0]
+        const durationMinutes = Math.round(duration / 60)
+        
+        addFocusSession(session)
+        updateDailyStats(today, durationMinutes, completedTasks)
+      }
     } catch (error) {
       console.error('Error tracking focus session:', error)
     }
@@ -278,6 +288,7 @@ export default function PomodoroTimer({ onTimerComplete, compact = false }: Pomo
       </div>
     )
   }
+
 
   if (compact) {
     return (

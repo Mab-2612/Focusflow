@@ -1,4 +1,3 @@
-//components/TaskCategories.tsx
 "use client"
 
 import { useState, useEffect } from 'react'
@@ -32,11 +31,19 @@ export default function TaskCategories({ selectedCategory, onCategorySelect }: T
     
     setIsLoading(true)
     try {
-      const categories = await taskService.getCategories(user.id)
-      setCategories(categories)
+      const result = await taskService.getCategories(user.id)
+      
+      if (result.error) {
+        setError(result.error)
+        setCategories([]) // Ensure it's always an array
+      } else {
+        setCategories(result.data || []) // Handle case where data might be null
+        setError('')
+      }
     } catch (error) {
       console.error('Error loading categories:', error)
       setError('Failed to load categories')
+      setCategories([]) // Ensure it's always an array
     } finally {
       setIsLoading(false)
     }
@@ -50,19 +57,19 @@ export default function TaskCategories({ selectedCategory, onCategorySelect }: T
     
     setError('')
     try {
-      const category = await taskService.createCategory({
+      const result = await taskService.createCategory({
         name: newCategoryName.trim(),
         color: newCategoryColor,
         user_id: user.id
       })
       
-      if (category) {
-        setCategories(prev => [...prev, category])
+      if (result.error) {
+        setError(result.error)
+      } else if (result.data) {
+        setCategories(prev => [...prev, result.data!])
         setNewCategoryName('')
         setNewCategoryColor('#3b82f6')
         setIsAdding(false)
-      } else {
-        setError('Failed to create category. It might already exist.')
       }
     } catch (error) {
       console.error('Error adding category:', error)
@@ -224,7 +231,8 @@ export default function TaskCategories({ selectedCategory, onCategorySelect }: T
           <span>All Tasks</span>
         </div>
         
-        {categories.map(category => (
+        {/* SAFE RENDER: Always ensure categories is an array */}
+        {(categories || []).map(category => (
           <div 
             key={category.id}
             style={categoryStyle(category, selectedCategory === category.id)}

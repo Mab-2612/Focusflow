@@ -1,16 +1,14 @@
-// next.config.ts
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   eslint: {
-    ignoreDuringBuilds: true, // ✅ don’t block builds for lint errors
+    ignoreDuringBuilds: true,
   },
   typescript: {
-    ignoreBuildErrors: true, // ✅ don’t block builds for type errors
+    ignoreBuildErrors: true,
   },
-  experimental: {
-    serverExternalPackages: ["@google/generative-ai"], // ✅ fixed key name
-  },
+  // Remove the experimental.serverExternalPackages - it's not needed
+  // The Google Generative AI package should work without this
 };
 
 export default nextConfig;

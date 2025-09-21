@@ -1,3 +1,4 @@
+//app/layout.tsx
 import type { Metadata } from 'next'
 import { ThemeProvider } from '@/components/ThemeContext'
 import { SoundProvider } from '@/contexts/SoundContext'
@@ -12,6 +13,7 @@ export const metadata: Metadata = {
   description: 'AI-Powered Productivity App',
 }
 
+// In your layout.tsx
 export default function RootLayout({
   children,
 }: {
@@ -23,7 +25,7 @@ export default function RootLayout({
         <ThemeProvider>
           <SoundProvider>
             <AppProvider>
-              <AuthGuard> {/* Wrap with AuthGuard */}
+              <AuthGuard>
                 <PageTransition>
                   {children}
                 </PageTransition>

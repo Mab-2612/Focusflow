@@ -1,3 +1,4 @@
+//components/AuthErrorBoundary.tsx
 "use client"
 
 import { useEffect, useState } from 'react'

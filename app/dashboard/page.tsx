@@ -1,4 +1,3 @@
-// app/dashboard/page.tsx
 "use client"
 
 import { useState, useEffect, useCallback } from 'react'
@@ -6,13 +5,16 @@ import { useTheme } from '@/components/ThemeContext'
 import Navbar from '@/components/Navbar'
 import { taskService, Task } from '@/services/taskService'
 import { useAuth } from '@/hooks/useAuth'
-import AnalyticsDashboard from '@/components/AnalyticsDashboard'
 import AdvancedAnalyticsDashboard from '@/components/AdvancedAnalyticsDashboard'
 import LiveProductivityMetrics from '@/components/LiveProductivityMetrics'
+import SimpleAnalyticsDashboard from '@/components/SimpleAnalyticsDashboard'
+import { useAnalyticsStore } from '@/lib/analyticsStore'
+import { supabase } from '@/lib/supabaseClient'
 
 export default function DashboardPage() {
   const { theme } = useTheme()
   const { user } = useAuth()
+  const { productivityScore, weeklyTrends, focusSessions } = useAnalyticsStore()
   const [tasks, setTasks] = useState<{
     urgent: Task[]
     important: Task[]
@@ -22,6 +24,11 @@ export default function DashboardPage() {
   const [refreshing, setRefreshing] = useState(false)
   const [taskToDelete, setTaskToDelete] = useState<string | null>(null)
   const [showAnalytics, setShowAnalytics] = useState(false)
+  const [userStats, setUserStats] = useState({
+    totalFocusTime: 0,
+    totalSessions: 0,
+    tasksCompleted: 0
+  })
 
   // Theme-aware styles
   const containerStyle = {
@@ -150,6 +157,46 @@ export default function DashboardPage() {
     padding: '20px'
   }
 
+  // Load user statistics
+  const loadUserStats = useCallback(async () => {
+    if (!user) return
+
+    try {
+      // Get total focus time and sessions
+      const { data: sessionsData, error: sessionsError } = await supabase
+        .from('focus_sessions')
+        .select('duration, completed_tasks')
+        .eq('user_id', user.id)
+
+      if (sessionsData && !sessionsError) {
+        const totalFocusTime = sessionsData.reduce((sum, session) => sum + session.duration, 0)
+        const tasksCompleted = sessionsData.reduce((sum, session) => sum + session.completed_tasks, 0)
+        
+        setUserStats({
+          totalFocusTime: Math.round(totalFocusTime / 60), // Convert to minutes
+          totalSessions: sessionsData.length,
+          tasksCompleted
+        })
+      }
+
+      // Get completed tasks count
+      const { data: tasksData, error: tasksError } = await supabase
+        .from('tasks')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('completed', true)
+
+      if (tasksData && !tasksError) {
+        setUserStats(prev => ({
+          ...prev,
+          tasksCompleted: tasksData.length
+        }))
+      }
+    } catch (error) {
+      console.error('Error loading user stats:', error)
+    }
+  }, [user])
+
   // Load tasks function
   const loadTasks = useCallback(async () => {
     if (!user) {
@@ -159,24 +206,28 @@ export default function DashboardPage() {
     
     try {
       setRefreshing(true)
-      const [urgent, important, later] = await Promise.all([
+      const [urgentResult, importantResult, laterResult] = await Promise.all([
         taskService.getTasksByPriority(user.id, 'urgent'),
         taskService.getTasksByPriority(user.id, 'important'),
         taskService.getTasksByPriority(user.id, 'later')
       ])
 
       setTasks({ 
-        urgent: urgent || [], 
-        important: important || [], 
-        later: later || [] 
+        urgent: urgentResult.data || [], 
+        important: importantResult.data || [], 
+        later: laterResult.data || [] 
       })
+
+      // Load user statistics
+      await loadUserStats()
+
     } catch (error) {
       console.error('Error loading tasks:', error)
     } finally {
       setLoading(false)
       setRefreshing(false)
     }
-  }, [user])
+  }, [user, loadUserStats])
 
   // Load tasks on mount and when user changes
   useEffect(() => {
@@ -196,9 +247,14 @@ export default function DashboardPage() {
       // Server update
       const result = await taskService.updateTask(taskId, { completed: !completed })
       
-      if (!result) {
+      if (!result.data) {
         // Revert if server update fails
         loadTasks()
+      } else {
+        // Refresh stats when task is completed
+        if (!completed) {
+          loadUserStats()
+        }
       }
     } catch (error) {
       console.error('Error updating task:', error)
@@ -224,6 +280,7 @@ export default function DashboardPage() {
           important: prev.important.filter(t => t.id !== taskToDelete),
           later: prev.later.filter(t => t.id !== taskToDelete)
         }))
+        loadUserStats() // Refresh stats
       } else {
         console.error('Failed to delete task')
         loadTasks() // Reload to sync with server
@@ -242,6 +299,14 @@ export default function DashboardPage() {
     loadTasks()
   }
 
+  // Format time for display
+  const formatTime = (minutes: number): string => {
+    if (isNaN(minutes)) return '0m'
+    const hours = Math.floor(minutes / 60)
+    const mins = minutes % 60
+    return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`
+  }
+
   // Loading state
   if (loading) {
     return (
@@ -255,7 +320,7 @@ export default function DashboardPage() {
             ⏳
           </div>
           <p style={{ color: theme === 'dark' ? '#f3f4f6' : '#374151' }}>
-            Loading your tasks...
+            Loading your dashboard...
           </p>
         </div>
       </div>
@@ -293,12 +358,67 @@ export default function DashboardPage() {
       )}
 
       <div style={contentStyle}>
-        {/* Today's Focus Card */}
+        {/* Welcome Card with Stats */}
         <div style={focusCardStyle}>
-          <h2 style={focusTitleStyle}>🎯 Today's Focus</h2>
+          <h2 style={focusTitleStyle}>
+            {user ? `🎯 Welcome back, ${user.email?.split('@')[0]}!` : 'Welcome to FocusFlow!'}
+          </h2>
           <p style={focusTextStyle}>
-            {user ? `Welcome back! You have ${tasks.urgent.length} urgent tasks, ${tasks.important.length} important tasks, and ${tasks.later.length} tasks for later.` : 'Please sign in to manage your tasks.'}
+            {user ? `You have ${tasks.urgent.length} urgent tasks, ${tasks.important.length} important tasks, and ${tasks.later.length} tasks for later.` : 'Please sign in to manage your tasks.'}
           </p>
+          
+          {/* Quick Stats */}
+          {user && (
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+              gap: '16px',
+              marginTop: '20px',
+              padding: '16px',
+              backgroundColor: theme === 'dark' ? '#374151' : '#f3f4f6',
+              borderRadius: '12px'
+            }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#3b82f6' }}>
+                  {formatTime(userStats.totalFocusTime)}
+                </div>
+                <div style={{ fontSize: '12px', color: theme === 'dark' ? '#9ca3af' : '#6b7280' }}>
+                  Total Focus
+                </div>
+              </div>
+              
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#10b981' }}>
+                  {userStats.tasksCompleted}
+                </div>
+                <div style={{ fontSize: '12px', color: theme === 'dark' ? '#9ca3af' : '#6b7280' }}>
+                  Tasks Done
+                </div>
+              </div>
+              
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#8b5cf6' }}>
+                  {userStats.totalSessions}
+                </div>
+                <div style={{ fontSize: '12px', color: theme === 'dark' ? '#9ca3af' : '#6b7280' }}>
+                  Sessions
+                </div>
+              </div>
+              
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ 
+                  fontSize: '18px', 
+                  fontWeight: 'bold', 
+                  color: productivityScore > 80 ? '#10b981' : productivityScore > 60 ? '#f59e0b' : '#ef4444' 
+                }}>
+                  {productivityScore}
+                </div>
+                <div style={{ fontSize: '12px', color: theme === 'dark' ? '#9ca3af' : '#6b7280' }}>
+                  Score
+                </div>
+              </div>
+            </div>
+          )}
           
           {/* Analytics Toggle Button */}
           {user && (
@@ -312,10 +432,13 @@ export default function DashboardPage() {
                 border: 'none',
                 borderRadius: '8px',
                 cursor: 'pointer',
-                fontSize: '14px'
+                fontSize: '14px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
               }}
             >
-              {showAnalytics ? 'Hide Analytics' : 'Show Analytics'}
+              {showAnalytics ? '▼ Hide Analytics' : '▲ Show Analytics'}
             </button>
           )}
           
@@ -339,21 +462,13 @@ export default function DashboardPage() {
         </div>
 
         {/* Analytics Dashboard */}
-        {/* // In your dashboard page, replace the analytics section with: */}
         {showAnalytics && user && (
           <>
-            <AdvancedAnalyticsDashboard />
-            <div style={{ 
-              backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff',
-              borderRadius: '16px',
-              padding: '24px',
-              marginBottom: '24px'
-            }}>
-              <h3 style={{ color: theme === 'dark' ? '#f3f4f6' : '#1f2937', marginBottom: '16px' }}>
-                Live Productivity Metrics
-              </h3>
+            <SimpleAnalyticsDashboard />
+            <div style={{ margin: '24px 0' }}>
               <LiveProductivityMetrics />
             </div>
+            <AdvancedAnalyticsDashboard />
           </>
         )}
 

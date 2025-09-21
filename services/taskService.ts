@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/client'
 
 const supabase = createClient()
 
+// Interfaces
 export interface Task {
   id: string
   title: string
@@ -24,21 +25,40 @@ export interface Category {
   created_at: string
 }
 
-// Callback interface for real-time updates
+interface ServiceResponse<T> {
+  data: T | null
+  error: string | null
+}
+
 interface TaskChangeCallbacks {
   onTaskChange?: (payload: any) => void
   onCategoryChange?: (payload: any) => void
 }
 
-let taskChangeCallbacks: TaskChangeCallbacks = {}
+// Helper functions
+const handleSupabaseError = (error: any, context: string): string => {
+  console.error(`Supabase Error (${context}):`, error)
+  
+  if (!error) return 'Unknown error occurred'
 
-export const setTaskChangeCallbacks = (callbacks: TaskChangeCallbacks) => {
-  taskChangeCallbacks = callbacks
+  if (error.code) {
+    switch (error.code) {
+      case 'PGRST301': return 'Authentication required'
+      case 'PGRST302': return 'Invalid authentication credentials'
+      case '42501': return 'Insufficient permissions'
+      case '42P01': return 'Table does not exist'
+      default: return `Database error: ${error.code}`
+    }
+  }
+
+  return error.message || `Unknown error in ${context}`
 }
 
-// Get all tasks for a user
-export const getTasks = async (userId: string): Promise<Task[]> => {
+// Task functions
+export const getTasks = async (userId: string): Promise<ServiceResponse<Task[]>> => {
   try {
+    if (!userId) return { data: null, error: 'User ID required' }
+
     const { data, error } = await supabase
       .from('tasks')
       .select('*')
@@ -46,20 +66,19 @@ export const getTasks = async (userId: string): Promise<Task[]> => {
       .order('created_at', { ascending: false })
 
     if (error) {
-      console.error('Error fetching tasks:', error)
-      return []
+      return { data: null, error: handleSupabaseError(error, 'fetching tasks') }
     }
 
-    return data || []
+    return { data: data || [], error: null }
   } catch (error) {
-    console.error('Error fetching tasks:', error)
-    return []
+    return { data: null, error: handleSupabaseError(error, 'fetching tasks') }
   }
 }
 
-// Get tasks by priority
-export const getTasksByPriority = async (userId: string, priority: 'urgent' | 'important' | 'later'): Promise<Task[]> => {
+export const getTasksByPriority = async (userId: string, priority: 'urgent' | 'important' | 'later'): Promise<ServiceResponse<Task[]>> => {
   try {
+    if (!userId) return { data: null, error: 'User ID required' }
+
     const { data, error } = await supabase
       .from('tasks')
       .select('*')
@@ -68,20 +87,20 @@ export const getTasksByPriority = async (userId: string, priority: 'urgent' | 'i
       .order('created_at', { ascending: false })
 
     if (error) {
-      console.error('Error fetching tasks by priority:', error)
-      return []
+      return { data: null, error: handleSupabaseError(error, `fetching ${priority} tasks`) }
     }
 
-    return data || []
+    return { data: data || [], error: null }
   } catch (error) {
-    console.error('Error fetching tasks by priority:', error)
-    return []
+    return { data: null, error: handleSupabaseError(error, `fetching ${priority} tasks`) }
   }
 }
 
-// Get tasks by category
-export const getTasksByCategory = async (userId: string, categoryId: string): Promise<Task[]> => {
+export const getTasksByCategory = async (userId: string, categoryId: string): Promise<ServiceResponse<Task[]>> => {
   try {
+    if (!userId) return { data: null, error: 'User ID required' }
+    if (!categoryId) return { data: null, error: 'Category ID required' }
+
     const { data, error } = await supabase
       .from('tasks')
       .select('*')
@@ -90,18 +109,15 @@ export const getTasksByCategory = async (userId: string, categoryId: string): Pr
       .order('created_at', { ascending: false })
 
     if (error) {
-      console.error('Error fetching tasks by category:', error)
-      return []
+      return { data: null, error: handleSupabaseError(error, 'fetching tasks by category') }
     }
 
-    return data || []
+    return { data: data || [], error: null }
   } catch (error) {
-    console.error('Error fetching tasks by category:', error)
-    return []
+    return { data: null, error: handleSupabaseError(error, 'fetching tasks by category') }
   }
 }
 
-// Create a new task
 export const createTask = async (task: {
   title: string
   priority: 'urgent' | 'important' | 'later'
@@ -109,8 +125,11 @@ export const createTask = async (task: {
   description?: string
   category_id?: string
   due_date?: string
-}): Promise<Task | null> => {
+}): Promise<ServiceResponse<Task>> => {
   try {
+    if (!task.user_id) return { data: null, error: 'User ID required' }
+    if (!task.title?.trim()) return { data: null, error: 'Task title is required' }
+
     const { data, error } = await supabase
       .from('tasks')
       .insert([{
@@ -126,18 +145,15 @@ export const createTask = async (task: {
       .single()
 
     if (error) {
-      console.error('Error creating task:', error)
-      return null
+      return { data: null, error: handleSupabaseError(error, 'creating task') }
     }
 
-    return data
+    return { data, error: null }
   } catch (error) {
-    console.error('Error creating task:', error)
-    return null
+    return { data: null, error: handleSupabaseError(error, 'creating task') }
   }
 }
 
-// Update a task
 export const updateTask = async (taskId: string, updates: {
   completed?: boolean
   priority?: 'urgent' | 'important' | 'later'
@@ -145,9 +161,10 @@ export const updateTask = async (taskId: string, updates: {
   description?: string
   category_id?: string | null
   due_date?: string | null
-}): Promise<boolean> => {
+}): Promise<ServiceResponse<boolean>> => {
   try {
-    // If marking as completed, set completed_at timestamp
+    if (!taskId) return { data: null, error: 'Task ID required' }
+
     const updateData = updates.completed !== undefined 
       ? { 
           ...updates, 
@@ -161,40 +178,38 @@ export const updateTask = async (taskId: string, updates: {
       .eq('id', taskId)
 
     if (error) {
-      console.error('Error updating task:', error)
-      return false
+      return { data: null, error: handleSupabaseError(error, 'updating task') }
     }
 
-    return true
+    return { data: true, error: null }
   } catch (error) {
-    console.error('Error updating task:', error)
-    return false
+    return { data: null, error: handleSupabaseError(error, 'updating task') }
   }
 }
 
-// Delete a task
-export const deleteTask = async (taskId: string): Promise<boolean> => {
+export const deleteTask = async (taskId: string): Promise<ServiceResponse<boolean>> => {
   try {
+    if (!taskId) return { data: null, error: 'Task ID required' }
+
     const { error } = await supabase
       .from('tasks')
       .delete()
       .eq('id', taskId)
 
     if (error) {
-      console.error('Error deleting task:', error)
-      return false
+      return { data: null, error: handleSupabaseError(error, 'deleting task') }
     }
 
-    return true
+    return { data: true, error: null }
   } catch (error) {
-    console.error('Error deleting task:', error)
-    return false
+    return { data: null, error: handleSupabaseError(error, 'deleting task') }
   }
 }
 
-// Mark all tasks as complete
-export const markAllTasksComplete = async (userId: string, priority?: 'urgent' | 'important' | 'later'): Promise<boolean> => {
+export const markAllTasksComplete = async (userId: string, priority?: 'urgent' | 'important' | 'later'): Promise<ServiceResponse<boolean>> => {
   try {
+    if (!userId) return { data: null, error: 'User ID required' }
+
     let query = supabase
       .from('tasks')
       .update({ 
@@ -211,20 +226,19 @@ export const markAllTasksComplete = async (userId: string, priority?: 'urgent' |
     const { error } = await query
     
     if (error) {
-      console.error('Error marking tasks complete:', error)
-      return false
+      return { data: null, error: handleSupabaseError(error, 'marking tasks complete') }
     }
     
-    return true
+    return { data: true, error: null }
   } catch (error) {
-    console.error('Error marking tasks complete:', error)
-    return false
+    return { data: null, error: handleSupabaseError(error, 'marking tasks complete') }
   }
 }
 
-// Delete all tasks
-export const deleteAllTasks = async (userId: string, priority?: 'urgent' | 'important' | 'later'): Promise<boolean> => {
+export const deleteAllTasks = async (userId: string, priority?: 'urgent' | 'important' | 'later'): Promise<ServiceResponse<boolean>> => {
   try {
+    if (!userId) return { data: null, error: 'User ID required' }
+
     let query = supabase
       .from('tasks')
       .delete()
@@ -237,28 +251,20 @@ export const deleteAllTasks = async (userId: string, priority?: 'urgent' | 'impo
     const { error } = await query
     
     if (error) {
-      console.error('Error deleting tasks:', error)
-      return false
+      return { data: null, error: handleSupabaseError(error, 'deleting tasks') }
     }
     
-    return true
+    return { data: true, error: null }
   } catch (error) {
-    console.error('Error deleting tasks:', error)
-    return false
+    return { data: null, error: handleSupabaseError(error, 'deleting tasks') }
   }
 }
 
-// Toggle task completion
-export const toggleTaskCompletion = async (taskId: string, currentCompleted: boolean): Promise<boolean> => {
-  return updateTask(taskId, { 
-    completed: !currentCompleted,
-    completed_at: !currentCompleted ? new Date().toISOString() : null
-  })
-}
-
-// Get user categories
-export const getCategories = async (userId: string): Promise<Category[]> => {
+// Category functions
+export const getCategories = async (userId: string): Promise<ServiceResponse<Category[]>> => {
   try {
+    if (!userId) return { data: null, error: 'User ID required' }
+
     const { data, error } = await supabase
       .from('task_categories')
       .select('*')
@@ -266,24 +272,24 @@ export const getCategories = async (userId: string): Promise<Category[]> => {
       .order('name')
 
     if (error) {
-      console.error('Error fetching categories:', error)
-      return []
+      return { data: null, error: handleSupabaseError(error, 'fetching categories') }
     }
 
-    return data || []
+    return { data: data || [], error: null }
   } catch (error) {
-    console.error('Error fetching categories:', error)
-    return []
+    return { data: null, error: handleSupabaseError(error, 'fetching categories') }
   }
 }
 
-// Create a new category
 export const createCategory = async (category: {
   name: string
   color: string
   user_id: string
-}): Promise<Category | null> => {
+}): Promise<ServiceResponse<Category>> => {
   try {
+    if (!category.user_id) return { data: null, error: 'User ID required' }
+    if (!category.name?.trim()) return { data: null, error: 'Category name is required' }
+
     const { data, error } = await supabase
       .from('task_categories')
       .insert([{
@@ -295,45 +301,52 @@ export const createCategory = async (category: {
       .single()
 
     if (error) {
-      console.error('Error creating category:', error)
-      return null
+      return { data: null, error: handleSupabaseError(error, 'creating category') }
     }
 
-    return data
+    return { data, error: null }
   } catch (error) {
-    console.error('Error creating category:', error)
-    return null
+    return { data: null, error: handleSupabaseError(error, 'creating category') }
   }
 }
 
-// Delete a category
-export const deleteCategory = async (categoryId: string): Promise<boolean> => {
+export const deleteCategory = async (categoryId: string): Promise<ServiceResponse<boolean>> => {
   try {
-    // First, remove category from all tasks
-    await supabase
+    if (!categoryId) return { data: null, error: 'Category ID required' }
+
+    // Remove category from tasks first
+    const { error: updateError } = await supabase
       .from('tasks')
       .update({ category_id: null })
       .eq('category_id', categoryId)
 
+    if (updateError) {
+      return { data: null, error: handleSupabaseError(updateError, 'removing category from tasks') }
+    }
+
     // Then delete the category
-    const { error } = await supabase
+    const { error: deleteError } = await supabase
       .from('task_categories')
       .delete()
       .eq('id', categoryId)
 
-    if (error) {
-      console.error('Error deleting category:', error)
-      return false
+    if (deleteError) {
+      return { data: null, error: handleSupabaseError(deleteError, 'deleting category') }
     }
 
-    return true
+    return { data: true, error: null }
   } catch (error) {
-    console.error('Error deleting category:', error)
-    return false
+    return { data: null, error: handleSupabaseError(error, 'deleting category') }
   }
 }
 
-// Real-time event handlers
+// Real-time handlers
+let taskChangeCallbacks: TaskChangeCallbacks = {}
+
+export const setTaskChangeCallbacks = (callbacks: TaskChangeCallbacks) => {
+  taskChangeCallbacks = callbacks
+}
+
 export const handleTaskChange = (payload: any) => {
   if (taskChangeCallbacks.onTaskChange) {
     taskChangeCallbacks.onTaskChange(payload)
@@ -346,27 +359,31 @@ export const handleCategoryChange = (payload: any) => {
   }
 }
 
-// Sync local state with server
+// Sync function
 export const syncTasks = async (userId: string): Promise<void> => {
   try {
-    const [tasks, categories] = await Promise.all([
+    if (!userId) {
+      console.error('User ID required for sync')
+      return
+    }
+
+    const [tasksResult, categoriesResult] = await Promise.allSettled([
       getTasks(userId),
       getCategories(userId)
     ])
     
-    // Update Zustand store via callbacks
-    if (taskChangeCallbacks.onTaskChange) {
+    if (tasksResult.status === 'fulfilled' && tasksResult.value.data && taskChangeCallbacks.onTaskChange) {
       taskChangeCallbacks.onTaskChange({
         eventType: 'SYNC',
-        new: tasks,
+        new: tasksResult.value.data,
         old: null
       })
     }
     
-    if (taskChangeCallbacks.onCategoryChange) {
+    if (categoriesResult.status === 'fulfilled' && categoriesResult.value.data && taskChangeCallbacks.onCategoryChange) {
       taskChangeCallbacks.onCategoryChange({
         eventType: 'SYNC',
-        new: categories,
+        new: categoriesResult.value.data,
         old: null
       })
     }
@@ -376,69 +393,34 @@ export const syncTasks = async (userId: string): Promise<void> => {
   }
 }
 
-// Track task completion for analytics
-export const trackTaskCompletion = async (taskId: string, completed: boolean) => {
-  try {
-    // Update task completion status
-    await updateTask(taskId, { completed })
-    
-    // If task is being completed, log it for analytics
-    if (completed) {
-      const today = new Date().toISOString().split('T')[0]
-      
-      // Import analytics store only when needed to avoid circular dependencies
-      const { useAnalyticsStore } = await import('@/lib/analyticsStore')
-      const { dailyStats, updateDailyStats } = useAnalyticsStore.getState()
-      const current = dailyStats[today] || { focusTime: 0, tasksCompleted: 0 }
-      
-      updateDailyStats(today, current.focusTime, current.tasksCompleted + 1)
-    }
-  } catch (error) {
-    console.error('Error tracking task completion:', error)
-  }
+// Compatibility functions for legacy code
+const toggleTaskCompletion = async (taskId: string, currentCompleted: boolean): Promise<boolean> => {
+  const result = await updateTask(taskId, { 
+    completed: !currentCompleted,
+    completed_at: !currentCompleted ? new Date().toISOString() : null
+  })
+  return result.data || false
 }
 
-// Update the updateTask function to use tracking
-export const updateTaskWithTracking = async (taskId: string, updates: {
-  completed?: boolean
-  priority?: 'urgent' | 'important' | 'later'
-  title?: string
-  description?: string
-  category_id?: string | null
-  due_date?: string | null
-}): Promise<boolean> => {
-  try {
-    // If marking as completed, track it
-    if (updates.completed !== undefined) {
-      await trackTaskCompletion(taskId, updates.completed)
-    }
-
-    const { error } = await supabase
-      .from('tasks')
-      .update(updates)
-      .eq('id', taskId)
-
-    return !error
-  } catch (error) {
-    console.error('Error updating task:', error)
-    return false
-  }
-}
-
-// Task service object
+// Main taskService object (exported at the end to avoid circular dependencies)
 export const taskService = {
+  // Task functions
   getTasks,
   getTasksByPriority,
   getTasksByCategory,
   createTask,
-  updateTask: updateTaskWithTracking,
+  updateTask,
   deleteTask,
-  toggleTaskCompletion,
   markAllTasksComplete,
   deleteAllTasks,
+  toggleTaskCompletion,
+  
+  // Category functions
   getCategories,
   createCategory,
   deleteCategory,
+  
+  // Real-time handlers
   handleTaskChange,
   handleCategoryChange,
   syncTasks,

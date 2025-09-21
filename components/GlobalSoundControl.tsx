@@ -1,3 +1,4 @@
+//components/GlobalSoundControl.tsx
 "use client"
 
 import { useSound } from '@/contexts/SoundContext'

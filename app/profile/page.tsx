@@ -1,4 +1,3 @@
-// app/profile/page.tsx
 "use client"
 
 import { useTheme } from '@/components/ThemeContext'
@@ -6,6 +5,7 @@ import Navbar from '@/components/Navbar'
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/lib/supabaseClient'
+import { useAnalyticsStore } from '@/lib/analyticsStore'
 
 interface UserPreferences {
   auto_break_enabled: boolean
@@ -15,13 +15,14 @@ interface UserPreferences {
   notifications_enabled: boolean
   default_view: 'dashboard' | 'voice' | 'pomodoro'
   sound_effects: boolean
+  dark_mode?: boolean
 }
 
 export default function ProfilePage() {
   const { theme, toggleTheme } = useTheme()
   const { user } = useAuth()
   const [isMounted, setIsMounted] = useState(false)
-  const [activeTab, setActiveTab] = useState<'profile' | 'preferences' | 'subscription' | 'analytics'>('profile')
+  const [activeTab, setActiveTab] = useState<'profile' | 'preferences' | 'analytics' | 'subscription'>('profile')
   const [preferences, setPreferences] = useState<UserPreferences>({
     auto_break_enabled: true,
     break_duration: 5,
@@ -29,18 +30,27 @@ export default function ProfilePage() {
     long_break_duration: 15,
     notifications_enabled: true,
     default_view: 'dashboard',
-    sound_effects: true
+    sound_effects: true,
+    dark_mode: false
   })
   const [isSaving, setIsSaving] = useState(false)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle')
   const [profileData, setProfileData] = useState({
     name: '',
     email: ''
-  });
-  const [isSavingProfile, setIsSavingProfile] = useState(false);
-  const [profileSaveStatus, setProfileSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  })
+  const [isSavingProfile, setIsSavingProfile] = useState(false)
+  const [profileSaveStatus, setProfileSaveStatus] = useState<'idle' | 'success' | 'error'>('idle')
+  
+  // Analytics state
+  const [focusSessions, setFocusSessions] = useState<any[]>([])
+  const [weeklyTrends, setWeeklyTrends] = useState<any[]>([])
+  const [productivityScore, setProductivityScore] = useState(0)
+  const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(false)
+  const [totalFocusTime, setTotalFocusTime] = useState(0)
+  const [totalTasksCompleted, setTotalTasksCompleted] = useState(0)
 
-  // Theme-aware styles - MOVED TO TOP LEVEL
+  // Theme-aware styles
   const containerStyle = {
     minHeight: '100vh',
     backgroundColor: theme === 'dark' ? '#111827' : '#f9fafb',
@@ -59,8 +69,7 @@ export default function ProfilePage() {
     fontSize: '36px',
     fontWeight: 'bold',
     marginBottom: '32px',
-    color: theme === 'dark' ? '#f3f4f6' : '#1f2937',
-    transition: 'color 0.3s ease'
+    color: theme === 'dark' ? '#f3f4f6' : '#1f2937'
   }
 
   const tabContainerStyle = {
@@ -87,16 +96,14 @@ export default function ProfilePage() {
     borderRadius: '16px',
     boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
     padding: '24px',
-    marginBottom: '24px',
-    transition: 'background-color 0.3s ease'
+    marginBottom: '24px'
   }
 
   const sectionTitleStyle = {
     fontSize: '20px',
     fontWeight: '600',
     marginBottom: '16px',
-    color: theme === 'dark' ? '#f3f4f6' : '#1f2937',
-    transition: 'color 0.3s ease'
+    color: theme === 'dark' ? '#f3f4f6' : '#1f2937'
   }
 
   const inputGroupStyle = {
@@ -108,8 +115,7 @@ export default function ProfilePage() {
     fontSize: '14px',
     fontWeight: '500',
     marginBottom: '8px',
-    color: theme === 'dark' ? '#d1d5db' : '#374151',
-    transition: 'color 0.3s ease'
+    color: theme === 'dark' ? '#d1d5db' : '#374151'
   }
 
   const inputStyle = {
@@ -119,48 +125,24 @@ export default function ProfilePage() {
     borderRadius: '12px',
     fontSize: '16px',
     backgroundColor: theme === 'dark' ? '#111827' : '#ffffff',
-    color: theme === 'dark' ? '#f3f4f6' : '#1f2937',
-    transition: 'border-color 0.3s ease, background-color 0.3s ease, color 0.3s ease'
+    color: theme === 'dark' ? '#f3f4f6' : '#1f2937'
   }
 
   const toggleContainerStyle = {
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      marginBottom: '20px',
-      padding: '12px',
-      backgroundColor: theme === 'dark' ? '#374151' : '#f3f4f6',
-      borderRadius: '12px'
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: '20px',
+    padding: '12px',
+    backgroundColor: theme === 'dark' ? '#374151' : '#f3f4f6',
+    borderRadius: '12px'
   }
 
   const toggleLabelStyle = {
-      color: theme === 'dark' ? '#d1d5db' : '#374151',
+    color: theme === 'dark' ? '#d1d5db' : '#374151',
     fontSize: '14px',
-    fontWeight: '500',
-    transition: 'color 0.3s ease'
+    fontWeight: '500'
   }
-
-  const toggleButtonStyle = (isOn: boolean) => ({
-    position: 'relative' as const,
-    display: 'inline-flex',
-    height: '24px',
-    width: '44px',
-    alignItems: 'center',
-    borderRadius: '12px',
-    backgroundColor: isOn ? '#10b981' : (theme === 'dark' ? '#374151' : '#d1d5db'),
-    cursor: 'pointer',
-    border: 'none',
-    transition: 'background-color 0.3s ease'
-  })
-
-  const toggleThumbStyle = (isOn: boolean) => ({
-    height: '19px',
-    width: '20px',
-    backgroundColor: '#ffffff',
-    borderRadius: '50%',
-    transform: isOn ? 'translateX(22px)' : 'translateX(2px)',
-    transition: 'transform 0.3s ease'
-  })
 
   const saveButtonStyle = {
     padding: '12px 24px',
@@ -174,6 +156,47 @@ export default function ProfilePage() {
     opacity: isSaving ? 0.7 : 1
   }
 
+  // Analytics styles
+  const statCardStyle = {
+    backgroundColor: theme === 'dark' ? '#374151' : '#f3f4f6',
+    padding: '16px',
+    borderRadius: '12px',
+    textAlign: 'center' as const
+  }
+
+  const statValueStyle = {
+    fontSize: '24px',
+    fontWeight: 'bold',
+    margin: '8px 0',
+    color: theme === 'dark' ? '#f3f4f6' : '#1f2937'
+  }
+
+  const statLabelStyle = {
+    fontSize: '14px',
+    color: theme === 'dark' ? '#9ca3af' : '#6b7280',
+    margin: 0
+  }
+
+  const sessionListStyle = {
+    maxHeight: '300px',
+    overflowY: 'auto' as const
+  }
+
+  const sessionItemStyle = {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '12px',
+    borderBottom: `1px solid ${theme === 'dark' ? '#374151' : '#e5e7eb'}`,
+    fontSize: '14px'
+  }
+
+  // Helper function to validate UUID format
+  const isValidUUID = (uuid: string): boolean => {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    return uuidRegex.test(uuid);
+  }
+
   useEffect(() => {
     setIsMounted(true)
     if (user) {
@@ -182,50 +205,35 @@ export default function ProfilePage() {
     }
   }, [user])
 
-  // Helper function to validate UUID format
-  const isValidUUID = (uuid: string): boolean => {
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    return uuidRegex.test(uuid);
-  }
+  useEffect(() => {
+    if (user && activeTab === 'analytics') {
+      loadAnalyticsData()
+    }
+  }, [activeTab, user])
 
   const loadUserPreferences = async () => {
     if (!user) return
     
     try {
-      // Validate the user ID is a valid UUID
       if (!isValidUUID(user.id)) {
-        console.error('Invalid user ID format:', user.id);
+        console.error('Invalid user ID format');
         return;
       }
 
-      console.log('Loading preferences for user ID:', user.id);
-      
       const { data, error } = await supabase
         .from('user_preferences')
         .select('preferences')
         .eq('user_id', user.id)
         .single()
       
-      console.log('Query result:', { data, error });
-      
       if (error) {
-        console.error('Full error details:', {
-          message: error.message,
-          code: error.code,
-          details: error.details,
-          hint: error.hint
-        });
-        
         if (error.code === 'PGRST116') {
-          // No preferences found, create default ones
-          console.log('No preferences found, creating default...');
           await createDefaultPreferences();
         }
         return;
       }
       
       if (data) {
-        // Ensure all numeric values are valid numbers
         const loadedPreferences = {
           ...data.preferences,
           break_duration: Number(data.preferences.break_duration) || 5,
@@ -250,7 +258,8 @@ export default function ProfilePage() {
         long_break_duration: 15,
         notifications_enabled: true,
         default_view: 'dashboard',
-        sound_effects: true
+        sound_effects: true,
+        dark_mode: theme === 'dark'
       };
 
       const { data, error } = await supabase
@@ -263,10 +272,7 @@ export default function ProfilePage() {
         .single()
       
       if (data && !error) {
-        console.log('Default preferences created successfully');
         setPreferences(defaultPreferences);
-      } else if (error) {
-        console.error('Error creating default preferences:', error);
       }
     } catch (error) {
       console.error('Error creating default preferences:', error)
@@ -297,15 +303,12 @@ export default function ProfilePage() {
       });
       
       if (error) {
-        console.error('Error updating profile:', error);
         setProfileSaveStatus('error');
       } else {
-        console.log('Profile updated successfully');
         setProfileSaveStatus('success');
         setTimeout(() => setProfileSaveStatus('idle'), 2000);
       }
     } catch (error) {
-      console.error('Error updating profile:', error);
       setProfileSaveStatus('error');
     } finally {
       setIsSavingProfile(false);
@@ -328,36 +331,160 @@ export default function ProfilePage() {
         })
       
       if (error) {
-        console.error('Error saving preferences:', error)
         setSaveStatus('error')
       } else {
         setSaveStatus('success')
-        // Clear success message after 2 seconds
         setTimeout(() => setSaveStatus('idle'), 2000)
       }
     } catch (error) {
-      console.error('Error saving preferences:', error)
       setSaveStatus('error')
     } finally {
       setIsSaving(false)
     }
   }
 
-  const handlePreferenceChange = (key: keyof UserPreferences, value: any) => {
-    // Ensure numeric values are properly converted
+  const handlePreferenceChange = async (key: keyof UserPreferences, value: any) => {
+    // Convert numeric values
     if (['break_duration', 'work_duration', 'long_break_duration'].includes(key)) {
       value = parseInt(value) || 0
     }
     
+    // Update local state immediately for responsive UI
     setPreferences(prev => ({
       ...prev,
       [key]: value
     }))
+
+    // Special handling for theme toggle
+    if (key === 'dark_mode') {
+      if (value !== (theme === 'dark')) {
+        toggleTheme()
+      }
+    }
+
+    // Save to Supabase
+    if (user) {
+      try {
+        const { error } = await supabase
+          .from('user_preferences')
+          .upsert({
+            user_id: user.id,
+            preferences: {
+              ...preferences,
+              [key]: value
+            },
+            updated_at: new Date().toISOString()
+          }, {
+            onConflict: 'user_id'
+          })
+
+        if (error) {
+          console.error('Error saving preference:', error)
+          // Revert local change if save fails
+          setPreferences(prev => ({
+            ...prev,
+            [key]: key === 'dark_mode' ? (theme === 'dark') : preferences[key]
+          }))
+        } else {
+          setSaveStatus('success')
+          setTimeout(() => setSaveStatus('idle'), 2000)
+        }
+      } catch (error) {
+        console.error('Error saving preference:', error)
+        setPreferences(prev => ({
+          ...prev,
+          [key]: key === 'dark_mode' ? (theme === 'dark') : preferences[key]
+        }))
+      }
+    }
   }
 
   const handleNumberInput = (e: React.ChangeEvent<HTMLInputElement>, key: keyof UserPreferences) => {
     const value = e.target.value === '' ? 0 : parseInt(e.target.value)
     handlePreferenceChange(key, isNaN(value) ? 0 : value)
+  }
+
+  // Analytics functions
+  const loadAnalyticsData = async () => {
+    if (!user) return
+    
+    setIsLoadingAnalytics(true)
+    try {
+      // Load focus sessions
+      const { data: sessions, error } = await supabase
+        .from('focus_sessions')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+
+      if (sessions && !error) {
+        setFocusSessions(sessions)
+        
+        // Calculate totals
+        const totalTime = sessions.reduce((sum, session) => sum + Math.round(session.duration / 60), 0)
+        const totalTasks = sessions.reduce((sum, session) => sum + session.completed_tasks, 0)
+        
+        setTotalFocusTime(totalTime)
+        setTotalTasksCompleted(totalTasks)
+        
+        // Calculate weekly trends
+        const last7Days = Array.from({ length: 7 }, (_, i) => {
+          const date = new Date()
+          date.setDate(date.getDate() - i)
+          return date.toISOString().split('T')[0]
+        }).reverse()
+
+        const weeklyData = last7Days.map(date => {
+          const daySessions = sessions.filter(session => 
+            new Date(session.created_at).toISOString().split('T')[0] === date
+          )
+          
+          const dayFocus = daySessions.reduce((sum, session) => sum + Math.round(session.duration / 60), 0)
+          const dayTasks = daySessions.reduce((sum, session) => sum + session.completed_tasks, 0)
+          
+          return {
+            date,
+            focusTime: dayFocus,
+            tasksCompleted: dayTasks
+          }
+        })
+        
+        setWeeklyTrends(weeklyData)
+        
+        // Calculate productivity score (simplified)
+        const activeDays = last7Days.filter(date => 
+          weeklyData.find(day => day.date === date)?.focusTime > 0
+        ).length
+        
+        const consistency = (activeDays / 7) * 40
+        const efficiency = Math.min(100, (totalTasks / 20) * 60) // 20 tasks per week target
+        setProductivityScore(Math.round(consistency + efficiency))
+      }
+    } catch (error) {
+      console.error('Error loading analytics:', error)
+    } finally {
+      setIsLoadingAnalytics(false)
+    }
+  }
+
+  const exportAnalyticsData = () => {
+    const csvContent = [
+      ['Date', 'Session Type', 'Duration (minutes)', 'Tasks Completed'],
+      ...focusSessions.map(session => [
+        new Date(session.created_at).toLocaleDateString(),
+        session.session_type,
+        Math.round(session.duration / 60),
+        session.completed_tasks
+      ])
+    ].map(row => row.join(',')).join('\n')
+
+    const blob = new Blob([csvContent], { type: 'text/csv' })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `focusflow-analytics-${new Date().toISOString().split('T')[0]}.csv`
+    link.click()
+    window.URL.revokeObjectURL(url)
   }
 
   if (!isMounted) {
@@ -376,63 +503,31 @@ export default function ProfilePage() {
       <div style={contentStyle}>
         <h1 style={titleStyle}>Profile & Settings</h1>
         
-        {/* Status Message */}
+        {/* Status Messages */}
         {saveStatus === 'success' && (
-          <div style={{
-            padding: '12px 16px',
-            backgroundColor: '#10b981',
-            color: 'white',
-            borderRadius: '8px',
-            marginBottom: '16px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px'
-          }}>
-            <span>✓</span>
+          <div style={{ padding: '12px 16px', backgroundColor: '#10b981', color: 'white', borderRadius: '8px', marginBottom: '16px' }}>
             Preferences saved successfully!
           </div>
         )}
         
         {saveStatus === 'error' && (
-          <div style={{
-            padding: '12px 16px',
-            backgroundColor: '#ef4444',
-            color: 'white',
-            borderRadius: '8px',
-            marginBottom: '16px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px'
-          }}>
-            <span>⚠️</span>
+          <div style={{ padding: '12px 16px', backgroundColor: '#ef4444', color: 'white', borderRadius: '8px', marginBottom: '16px' }}>
             Failed to save preferences. Please try again.
           </div>
         )}
 
         {/* Tab Navigation */}
         <div style={tabContainerStyle}>
-          <button 
-            style={tabStyle(activeTab === 'profile')}
-            onClick={() => setActiveTab('profile')}
-          >
+          <button style={tabStyle(activeTab === 'profile')} onClick={() => setActiveTab('profile')}>
             Profile
           </button>
-          <button 
-            style={tabStyle(activeTab === 'preferences')}
-            onClick={() => setActiveTab('preferences')}
-          >
+          <button style={tabStyle(activeTab === 'preferences')} onClick={() => setActiveTab('preferences')}>
             Preferences
           </button>
-          <button 
-            style={tabStyle(activeTab === 'analytics')}
-            onClick={() => setActiveTab('analytics')}
-          >
+          <button style={tabStyle(activeTab === 'analytics')} onClick={() => setActiveTab('analytics')}>
             Analytics
           </button>
-          <button 
-            style={tabStyle(activeTab === 'subscription')}
-            onClick={() => setActiveTab('subscription')}
-          >
+          <button style={tabStyle(activeTab === 'subscription')} onClick={() => setActiveTab('subscription')}>
             Subscription
           </button>
         </div>
@@ -442,35 +537,14 @@ export default function ProfilePage() {
           <div style={sectionStyle}>
             <h2 style={sectionTitleStyle}>Account Information</h2>
             
-            {/* Profile Save Status */}
             {profileSaveStatus === 'success' && (
-              <div style={{
-                padding: '12px 16px',
-                backgroundColor: '#10b981',
-                color: 'white',
-                borderRadius: '8px',
-                marginBottom: '16px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}>
-                <span>✓</span>
+              <div style={{ padding: '12px 16px', backgroundColor: '#10b981', color: 'white', borderRadius: '8px', marginBottom: '16px' }}>
                 Profile updated successfully!
               </div>
             )}
             
             {profileSaveStatus === 'error' && (
-              <div style={{
-                padding: '12px 16px',
-                backgroundColor: '#ef4444',
-                color: 'white',
-                borderRadius: '8px',
-                marginBottom: '16px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}>
-                <span>⚠️</span>
+              <div style={{ padding: '12px 16px', backgroundColor: '#ef4444', color: 'white', borderRadius: '8px', marginBottom: '16px' }}>
                 Failed to update profile. Please try again.
               </div>
             )}
@@ -486,6 +560,7 @@ export default function ProfilePage() {
                 placeholder="Enter your name"
               />
             </div>
+            
             <div style={inputGroupStyle}>
               <label htmlFor="email" style={labelStyle}>Email</label>
               <input 
@@ -497,34 +572,9 @@ export default function ProfilePage() {
               />
             </div>
             
-            <button 
-              onClick={saveProfileData}
-              disabled={isSavingProfile}
-              style={{
-                padding: '12px 24px',
-                backgroundColor: isSavingProfile ? '#9ca3af' : '#3b82f6',
-                color: 'white',
-                border: 'none',
-                borderRadius: '8px',
-                cursor: isSavingProfile ? 'not-allowed' : 'pointer',
-                fontSize: '16px',
-                fontWeight: '600'
-              }}
-            >
+            <button onClick={saveProfileData} disabled={isSavingProfile} style={saveButtonStyle}>
               {isSavingProfile ? 'Saving...' : 'Save Profile'}
             </button>
-            
-            <div style={{ 
-              marginTop: '16px', 
-              padding: '12px', 
-              backgroundColor: theme === 'dark' ? '#374151' : '#f3f4f6',
-              borderRadius: '8px',
-              fontSize: '14px',
-              color: theme === 'dark' ? '#d1d5db' : '#6b7280'
-            }}>
-              <strong>Note:</strong> Changing your email address requires verification. 
-              Please contact support if you need to update your email.
-            </div>
           </div>
         )}
 
@@ -541,7 +591,7 @@ export default function ProfilePage() {
                     type="checkbox" 
                     id="auto-break"
                     checked={preferences.auto_break_enabled}
-                    onChange={() => handlePreferenceChange('auto_break_enabled', !preferences.auto_break_enabled)}
+                    onChange={(e) => handlePreferenceChange('auto_break_enabled', e.target.checked)}
                   />
                   <span className="toggle-slider"></span>
                 </div>
@@ -554,7 +604,7 @@ export default function ProfilePage() {
                     type="checkbox" 
                     id="sound-effects"
                     checked={preferences.sound_effects}
-                    onChange={() => handlePreferenceChange('sound_effects', !preferences.sound_effects)}
+                    onChange={(e) => handlePreferenceChange('sound_effects', e.target.checked)}
                   />
                   <span className="toggle-slider"></span>
                 </div>
@@ -565,7 +615,7 @@ export default function ProfilePage() {
                 <input 
                   type="number" 
                   id="workDuration"
-                  value={isNaN(preferences.work_duration) ? '' : preferences.work_duration}
+                  value={preferences.work_duration}
                   onChange={(e) => handleNumberInput(e, 'work_duration')}
                   style={inputStyle}
                   min="5"
@@ -578,7 +628,7 @@ export default function ProfilePage() {
                 <input 
                   type="number" 
                   id="breakDuration"
-                  value={isNaN(preferences.break_duration) ? '' : preferences.break_duration}
+                  value={preferences.break_duration}
                   onChange={(e) => handleNumberInput(e, 'break_duration')}
                   style={inputStyle}
                   min="1"
@@ -591,26 +641,12 @@ export default function ProfilePage() {
                 <input 
                   type="number" 
                   id="longBreakDuration"
-                  value={isNaN(preferences.long_break_duration) ? '' : preferences.long_break_duration}
+                  value={preferences.long_break_duration}
                   onChange={(e) => handleNumberInput(e, 'long_break_duration')}
                   style={inputStyle}
                   min="5"
                   max="30"
                 />
-              </div>
-
-              <div style={inputGroupStyle}>
-                <label htmlFor="defaultView" style={labelStyle}>Default View</label>
-                <select
-                  id="defaultView"
-                  value={preferences.default_view}
-                  onChange={(e) => handlePreferenceChange('default_view', e.target.value)}
-                  style={inputStyle}
-                >
-                  <option value="dashboard">Dashboard</option>
-                  <option value="voice">Voice Assistant</option>
-                  <option value="pomodoro">Pomodoro Timer</option>
-                </select>
               </div>
             </div>
 
@@ -625,18 +661,17 @@ export default function ProfilePage() {
                     type="checkbox" 
                     id="dark-mode"
                     checked={theme === 'dark'}
-                    onChange={toggleTheme}
+                    onChange={(e) => {
+                      toggleTheme() // This should update the theme context
+                      handlePreferenceChange('dark_mode', e.target.checked)
+                    }}
                   />
                   <span className="toggle-slider"></span>
                 </div>
               </div>
             </div>
 
-            <button 
-              onClick={savePreferences}
-              style={saveButtonStyle}
-              disabled={isSaving}
-            >
+            <button onClick={savePreferences} style={saveButtonStyle} disabled={isSaving}>
               {isSaving ? 'Saving...' : 'Save Preferences'}
             </button>
           </div>
@@ -647,54 +682,92 @@ export default function ProfilePage() {
           <div style={sectionStyle}>
             <h2 style={sectionTitleStyle}>Productivity Analytics</h2>
             <p style={{ color: theme === 'dark' ? '#9ca3af' : '#6b7280', marginBottom: '24px' }}>
-              Track your productivity trends and improve your focus habits.
+              {isLoadingAnalytics ? 'Loading your productivity data...' : 'Track your productivity trends and improve your focus habits.'}
             </p>
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-              gap: '16px',
-              marginBottom: '24px'
-            }}>
-              <div style={{
-                backgroundColor: theme === 'dark' ? '#374151' : '#f3f4f6',
-                padding: '16px',
-                borderRadius: '12px',
-                textAlign: 'center'
-              }}>
-                <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#3b82f6' }}>12</div>
-                <div style={{ fontSize: '14px', color: theme === 'dark' ? '#d1d5db' : '#6b7280' }}>Focus Sessions</div>
-              </div>
-              <div style={{
-                backgroundColor: theme === 'dark' ? '#374151' : '#f3f4f6',
-                padding: '16px',
-                borderRadius: '12px',
-                textAlign: 'center'
-              }}>
-                <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#10b981' }}>5h 42m</div>
-                <div style={{ fontSize: '14px', color: theme === 'dark' ? '#d1d5db' : '#6b7280' }}>Total Focus Time</div>
-              </div>
-              <div style={{
-                backgroundColor: theme === 'dark' ? '#374151' : '#f3f4f6',
-                padding: '16px',
-                borderRadius: '12px',
-                textAlign: 'center'
-              }}>
-                <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#ef4444' }}>47%</div>
-                <div style={{ fontSize: '14px', color: theme === 'dark' ? '#d1d5db' : '#6b7280' }}>Tasks Completed</div>
-              </div>
-            </div>
             
-            <div style={{
-              height: '200px',
-              backgroundColor: theme === 'dark' ? '#374151' : '#f3f4f6',
-              borderRadius: '12px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: theme === 'dark' ? '#9ca3af' : '#6b7280'
-            }}>
-              Weekly Focus Chart (Placeholder)
-            </div>
+            {isLoadingAnalytics ? (
+              <div style={{ textAlign: 'center', padding: '40px', color: theme === 'dark' ? '#9ca3af' : '#6b7280' }}>
+                <div style={{ animation: 'spin 1s linear infinite', fontSize: '24px', marginBottom: '16px' }}>⏳</div>
+                Loading your productivity data...
+              </div>
+            ) : (
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+                  <div style={statCardStyle}>
+                    <div style={statValueStyle}>{focusSessions.length}</div>
+                    <div style={statLabelStyle}>Focus Sessions</div>
+                  </div>
+                  
+                  <div style={statCardStyle}>
+                    <div style={statValueStyle}>
+                      {Math.floor(totalFocusTime / 60)}h {totalFocusTime % 60}m
+                    </div>
+                    <div style={statLabelStyle}>Total Focus Time</div>
+                  </div>
+                  
+                  <div style={statCardStyle}>
+                    <div style={statValueStyle}>{totalTasksCompleted}</div>
+                    <div style={statLabelStyle}>Tasks Completed</div>
+                  </div>
+                  
+                  <div style={statCardStyle}>
+                    <div style={{...statValueStyle, color: productivityScore > 80 ? '#10b981' : productivityScore > 60 ? '#f59e0b' : '#ef4444'}}>
+                      {productivityScore}
+                    </div>
+                    <div style={statLabelStyle}>Productivity Score</div>
+                  </div>
+                </div>
+
+                {/* Weekly Focus Chart */}
+                <div style={{ height: '200px', backgroundColor: theme === 'dark' ? '#374151' : '#f3f4f6', borderRadius: '12px', padding: '16px', marginBottom: '24px' }}>
+                  {weeklyTrends.length > 0 ? (
+                    <div style={{ width: '100%', height: '100%' }}>
+                      <h4 style={{ marginBottom: '12px', color: theme === 'dark' ? '#f3f4f6' : '#374151' }}>Weekly Focus Time</h4>
+                      <div style={{ display: 'flex', alignItems: 'end', gap: '8px', height: '120px' }}>
+                        {weeklyTrends.map((day, index) => (
+                          <div key={index} style={{ flex: 1, textAlign: 'center' }}>
+                            <div style={{ height: `${Math.min(100, (day.focusTime / 120) * 100)}px`, backgroundColor: '#3b82f6', borderRadius: '4px 4px 0 0', margin: '0 auto', width: '20px' }} />
+                            <div style={{ fontSize: '12px', marginTop: '8px', color: theme === 'dark' ? '#9ca3af' : '#6b7280' }}>
+                              {new Date(day.date).toLocaleDateString('en-US', { weekday: 'short' })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ color: theme === 'dark' ? '#9ca3af' : '#6b7280', textAlign: 'center', padding: '20px' }}>
+                      No focus sessions recorded yet. Start a Pomodoro session to see analytics!
+                    </div>
+                  )}
+                </div>
+
+                {/* Session History */}
+                <div>
+                  <h3 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '16px', color: theme === 'dark' ? '#f3f4f6' : '#1f2937' }}>
+                    Recent Focus Sessions
+                  </h3>
+                  <div style={sessionListStyle}>
+                    {focusSessions.slice(0, 5).map(session => (
+                      <div key={session.id} style={sessionItemStyle}>
+                        <span>{new Date(session.created_at).toLocaleDateString()} - {session.session_type}</span>
+                        <span>{Math.round(session.duration / 60)}m • {session.completed_tasks} tasks</span>
+                      </div>
+                    ))}
+                    {focusSessions.length === 0 && (
+                      <div style={{ textAlign: 'center', padding: '20px', color: theme === 'dark' ? '#9ca3af' : '#6b7280' }}>
+                        No focus sessions recorded yet
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {focusSessions.length > 0 && (
+                  <button onClick={exportAnalyticsData} style={{ padding: '10px 16px', backgroundColor: theme === 'dark' ? '#374151' : '#f3f4f6', color: theme === 'dark' ? '#d1d5db' : '#374151', border: `1px solid ${theme === 'dark' ? '#4b5563' : '#d1d5db'}`, borderRadius: '8px', cursor: 'pointer', marginTop: '16px' }}>
+                    📊 Export Analytics Data
+                  </button>
+                )}
+              </>
+            )}
           </div>
         )}
 
@@ -702,13 +775,7 @@ export default function ProfilePage() {
         {activeTab === 'subscription' && (
           <div style={sectionStyle}>
             <h2 style={sectionTitleStyle}>Subscription Plan</h2>
-            <div style={{
-              background: 'linear-gradient(135deg, #2563eb 0%, #7c3aed 100%)',
-              borderRadius: '12px',
-              padding: '24px',
-              color: '#ffffff',
-              marginBottom: '24px'
-            }}>
+            <div style={{ background: 'linear-gradient(135deg, #2563eb 0%, #7c3aed 100%)', borderRadius: '12px', padding: '24px', color: '#ffffff', marginBottom: '24px' }}>
               <h3 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '8px' }}>Pro Plan</h3>
               <p style={{ fontSize: '16px', marginBottom: '16px', opacity: '0.9' }}>$9.99/month</p>
               <ul style={{ margin: '16px 0', paddingLeft: '20px', opacity: '0.9' }}>
@@ -718,31 +785,9 @@ export default function ProfilePage() {
                 <li>Custom themes</li>
                 <li>Export your data</li>
               </ul>
-              <button style={{
-                marginTop: '16px',
-                backgroundColor: '#ffffff',
-                color: '#2563eb',
-                padding: '12px 24px',
-                borderRadius: '8px',
-                border: 'none',
-                cursor: 'pointer',
-                fontWeight: '500',
-                width: '100%'
-              }}>
+              <button style={{ marginTop: '16px', backgroundColor: '#ffffff', color: '#2563eb', padding: '12px 24px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontWeight: '500', width: '100%' }}>
                 Upgrade to Pro
               </button>
-            </div>
-            
-            <div style={{
-              backgroundColor: theme === 'dark' ? '#374151' : '#f3f4f6',
-              borderRadius: '12px',
-              padding: '16px',
-              marginBottom: '16px'
-            }}>
-              <h4 style={{ margin: '0 0 8px 0', color: theme === 'dark' ? '#f3f4f6' : '#1f2937' }}>Free Plan</h4>
-              <p style={{ margin: '0', color: theme === 'dark' ? '#d1d5db' : '#6b7280', fontSize: '14px' }}>
-                Basic task management, limited AI features, and standard analytics.
-              </p>
             </div>
           </div>
         )}

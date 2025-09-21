@@ -1,3 +1,4 @@
+//lib/store.ts
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import { Task, Category, setTaskChangeCallbacks } from '@/services/taskService'
