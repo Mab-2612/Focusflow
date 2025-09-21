@@ -1,52 +1,35 @@
-import { createClient } from '@supabase/supabase-js'
+import { createBrowserClient } from '@supabase/ssr'
 
-// Log environment status (for debugging)
-console.log('Supabase URL available:', !!process.env.NEXT_PUBLIC_SUPABASE_URL)
-console.log('Supabase Anon Key available:', !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+// Use a singleton pattern to prevent multiple instances
+let supabaseClient: ReturnType<typeof createBrowserClient> | null = null
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('Missing Supabase environment variables')
-}
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-    storage: {
-      getItem: (key) => {
-        if (typeof window !== 'undefined') {
-          return window.localStorage.getItem(key)
-        }
-        return null
-      },
-      setItem: (key, value) => {
-        if (typeof window !== 'undefined') {
-          window.localStorage.setItem(key, value)
-        }
-      },
-      removeItem: (key) => {
-        if (typeof window !== 'undefined') {
-          window.localStorage.removeItem(key)
-        }
-      },
-    },
-  },
-  global: {
-    headers: {
-      'X-Client-Info': 'focusflow-app'
-    }
+export function createClient() {
+  if (supabaseClient) {
+    return supabaseClient
   }
-})
-
-// Test connection on client side
-if (typeof window !== 'undefined') {
-  supabase.auth.getSession().then(({ data: { session } }) => {
-    console.log('Initial session:', session)
-  }).catch(error => {
-    console.error('Session check error:', error)
+  
+  // Check if we're in browser environment
+  if (typeof window === 'undefined') {
+    throw new Error('Supabase client should only be used on the client side')
+  }
+  
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error('Missing Supabase environment variables')
+  }
+  
+  supabaseClient = createBrowserClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+    },
   })
+  
+  return supabaseClient
 }
+
+// Export a singleton instance for client-side use
+export const supabase = createClient()

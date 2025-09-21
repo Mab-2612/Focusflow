@@ -1,12 +1,10 @@
-//app/layout.tsx
 import type { Metadata } from 'next'
 import { ThemeProvider } from '@/components/ThemeContext'
 import { SoundProvider } from '@/contexts/SoundContext'
-import GlobalSoundControl from '@/components/GlobalSoundControl'
 import AppProvider from '@/components/AppProvider'
 import AuthGuard from '@/components/AuthGuard'
 import PageTransition from '@/components/PageTransition'
-import AuthDebug from '@/components/AuthDebug'
+import GlobalSoundControl from '@/components/GlobalSoundControl'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -14,7 +12,24 @@ export const metadata: Metadata = {
   description: 'AI-Powered Productivity App',
 }
 
-// In your layout.tsx
+// This component will only be rendered on the client side
+function ClientLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <ThemeProvider>
+      <SoundProvider>
+        <AppProvider>
+          <AuthGuard>
+            <PageTransition>
+              {children}
+            </PageTransition>
+          </AuthGuard>
+          <GlobalSoundControl />
+        </AppProvider>
+      </SoundProvider>
+    </ThemeProvider>
+  )
+}
+
 export default function RootLayout({
   children,
 }: {
@@ -23,19 +38,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <ThemeProvider>
-          <SoundProvider>
-            <AppProvider>
-              <AuthGuard>
-                <PageTransition>
-                  {children}
-                  <AuthDebug />
-                </PageTransition>
-              </AuthGuard>
-              <GlobalSoundControl />
-            </AppProvider>
-          </SoundProvider>
-        </ThemeProvider>
+        <ClientLayout>
+          {children}
+        </ClientLayout>
       </body>
     </html>
   )
