@@ -1,6 +1,6 @@
-import { createClient } from '@/lib/supabase/client'
+import { supabase } from '@/lib/supabase/client'
 
-const supabase = createClient()
+// const supabase = createClient()
 
 // Interfaces
 export interface Task {

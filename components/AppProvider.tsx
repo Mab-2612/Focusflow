@@ -11,6 +11,7 @@ import { syncTasks } from '@/services/taskService'
 import { useAnalyticsStore } from '@/lib/analyticsStore'
 import { useAppStore } from '@/lib/store' // Add this import
 import { setTaskChangeCallbacks } from '@/services/taskService' // Add this import
+import { supabase } from '@/lib/supabase/client'
 
 export default function AppProvider({ children }: { children: React.ReactNode }) {
   useNetworkStatus()

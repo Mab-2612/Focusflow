@@ -3,7 +3,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { supabase } from '@/lib/supabase/client'
 
 export default function OnboardingPage() {
   const [isLogin, setIsLogin] = useState(true)
@@ -13,7 +13,7 @@ export default function OnboardingPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const router = useRouter()
-  const supabase = createClient()
+  // const supabase = createClient()
 
   const containerStyle = {
     minHeight: '100vh',
