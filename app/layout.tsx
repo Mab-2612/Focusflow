@@ -6,6 +6,7 @@ import GlobalSoundControl from '@/components/GlobalSoundControl'
 import AppProvider from '@/components/AppProvider'
 import AuthGuard from '@/components/AuthGuard'
 import PageTransition from '@/components/PageTransition'
+import AuthDebug from '@/components/AuthDebug'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -28,6 +29,7 @@ export default function RootLayout({
               <AuthGuard>
                 <PageTransition>
                   {children}
+                  <AuthDebug />
                 </PageTransition>
               </AuthGuard>
               <GlobalSoundControl />

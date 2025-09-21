@@ -1,46 +1,52 @@
-//lib/supabase/client.ts
-// import { createBrowserClient } from '@supabase/ssr'
+import { createClient } from '@supabase/supabase-js'
 
-// Use a singleton pattern to prevent multiple instances
-// let supabaseClient: ReturnType<typeof createBrowserClient> | null = null
+// Log environment status (for debugging)
+console.log('Supabase URL available:', !!process.env.NEXT_PUBLIC_SUPABASE_URL)
+console.log('Supabase Anon Key available:', !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
 
-// export function createClient() {
-//   if (supabaseClient) {
-//     return supabaseClient
-//   }
-  
-//   supabaseClient = createBrowserClient(
-//     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-//     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-//   )
-  
-//   return supabaseClient
-// }
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
-// lib/supabase/client.ts
-import { createBrowserClient } from '@supabase/ssr'
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error('Missing Supabase environment variables')
+}
 
-export function createClient() {
-  return createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true,
-        storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    storage: {
+      getItem: (key) => {
+        if (typeof window !== 'undefined') {
+          return window.localStorage.getItem(key)
+        }
+        return null
       },
-      global: {
-        headers: {
-          'X-Client-Info': 'focusflow-app'
+      setItem: (key, value) => {
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem(key, value)
         }
       },
-      // Suppress verbose logs
-      logger: {
-        log: () => {},
-        error: console.error,
-      }
+      removeItem: (key) => {
+        if (typeof window !== 'undefined') {
+          window.localStorage.removeItem(key)
+        }
+      },
+    },
+  },
+  global: {
+    headers: {
+      'X-Client-Info': 'focusflow-app'
     }
-  )
+  }
+})
+
+// Test connection on client side
+if (typeof window !== 'undefined') {
+  supabase.auth.getSession().then(({ data: { session } }) => {
+    console.log('Initial session:', session)
+  }).catch(error => {
+    console.error('Session check error:', error)
+  })
 }

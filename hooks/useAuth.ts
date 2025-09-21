@@ -1,4 +1,3 @@
-// hooks/useAuth.ts
 "use client"
 
 import { useState, useEffect } from 'react'
@@ -15,37 +14,20 @@ export function useAuth() {
     const getInitialSession = async () => {
       try {
         setLoading(true)
-        
-        // First try to get the current session
         const { data: { session }, error: sessionError } = await supabase.auth.getSession()
         
         if (sessionError) {
           console.error('Error getting session:', sessionError)
           setError(sessionError.message)
-          setLoading(false)
-          return
+          setUser(null)
+        } else {
+          setUser(session?.user ?? null)
+          setError(null)
         }
-
-        setUser(session?.user ?? null)
-        
-        // If no session, try to recover from localStorage
-        if (!session) {
-          const storedSession = localStorage.getItem('supabase.auth.token')
-          if (storedSession) {
-            try {
-              const parsedSession = JSON.parse(storedSession)
-              if (parsedSession?.currentSession?.user) {
-                setUser(parsedSession.currentSession.user)
-              }
-            } catch (parseError) {
-              console.error('Error parsing stored session:', parseError)
-            }
-          }
-        }
-        
-      } catch (error) {
-        console.error('Error in getInitialSession:', error)
+      } catch (err) {
+        console.error('Error in getInitialSession:', err)
         setError('Failed to initialize authentication')
+        setUser(null)
       } finally {
         setLoading(false)
       }
@@ -61,7 +43,7 @@ export function useAuth() {
         setLoading(false)
         
         if (event === 'SIGNED_OUT') {
-          // Clear any stored data on sign out
+          // Clear storage on sign out
           localStorage.removeItem('supabase.auth.token')
         }
       }

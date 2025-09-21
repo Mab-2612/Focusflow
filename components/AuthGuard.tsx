@@ -1,45 +1,36 @@
 "use client"
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
-import { supabase } from '@/lib/supabaseClient'
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
   const router = useRouter()
+  const pathname = usePathname()
   const [isChecking, setIsChecking] = useState(true)
 
   useEffect(() => {
-    const checkAuth = async () => {
-      setIsChecking(true)
+    // Only check auth after initial load and when not loading
+    if (!loading) {
+      setIsChecking(false)
       
-      // First try to get the current session
-      const { data: { session }, error } = await supabase.auth.getSession()
-      
-      if (session) {
-        // We have a session, allow access
-        setIsChecking(false)
-        return
-      }
-      
-      // No session, check if we're already on onboarding page to avoid loop
-      const currentPath = window.location.pathname
-      if (currentPath !== '/onboarding' && currentPath !== '/auth/callback') {
+      // If no user and not on auth pages, redirect to onboarding
+      if (!user && pathname !== '/onboarding' && pathname !== '/auth/callback' && !pathname.includes('/debug')) {
+        console.log('No user, redirecting to onboarding')
         router.push('/onboarding')
       }
       
-      setIsChecking(false)
+      // If user is logged in and on onboarding, redirect to dashboard
+      if (user && pathname === '/onboarding') {
+        console.log('User found, redirecting to dashboard')
+        router.push('/dashboard')
+      }
     }
+  }, [user, loading, pathname, router])
 
-    // Only check if not already loading
-    if (!loading) {
-      checkAuth()
-    }
-  }, [user, loading, router])
-
-  // Show loading spinner only if we're still checking
-  if (isChecking || loading) {
+  // Show loading spinner during initial check
+  if (loading || isChecking) {
     return (
       <div style={{
         display: 'flex',
@@ -57,13 +48,15 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
           borderRadius: '50%',
           animation: 'spin 1s linear infinite'
         }} />
-        <p>Checking authentication...</p>
+        <p>Loading...</p>
       </div>
     )
   }
 
-  // If no user and we're not on onboarding, we'll be redirected by the useEffect
-  if (!user && window.location.pathname !== '/onboarding') {
+  // Allow access to auth pages without user, and other pages with user
+  const isAuthPage = pathname === '/onboarding' || pathname === '/auth/callback' || pathname.includes('/debug')
+  
+  if (!user && !isAuthPage) {
     return null // Will redirect to onboarding
   }
 
