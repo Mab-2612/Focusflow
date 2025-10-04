@@ -1,7 +1,7 @@
-// contexts/SoundContext,tsx
 "use client"
 
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react'
+import { useAudioBoost } from '@/hooks/useAudioBoost'
 import { Howl } from 'howler'
 
 interface Sound {
@@ -15,7 +15,7 @@ interface SoundContextType {
   isSoundPanelOpen: boolean
   toggleSoundPanel: () => void
   selectedSound: string | null
-  playSound: (sound: Sound) => void
+  playSound: (sound: Sound, volume?: number) => void
   stopSound: () => void
   soundOptions: Sound[]
   preloadSounds: () => void
@@ -28,6 +28,7 @@ export const SoundProvider = ({ children }: { children: React.ReactNode }) => {
   const [selectedSound, setSelectedSound] = useState<string | null>(null)
   const soundsRef = useRef<{ [key: string]: Howl }>({})
   const [preloaded, setPreloaded] = useState(false)
+  const { boostAudio } = useAudioBoost()
 
   const soundOptions: Sound[] = [
     { id: 'rain', name: 'Rain', emoji: '🌧️', freesoundId: 826231 },
@@ -60,7 +61,7 @@ export const SoundProvider = ({ children }: { children: React.ReactNode }) => {
           soundsRef.current[sound.id] = new Howl({
             src: [previewUrl],
             loop: true,
-            volume: 0.4,
+            volume: 0.9,
             preload: true
           })
         }
@@ -71,11 +72,8 @@ export const SoundProvider = ({ children }: { children: React.ReactNode }) => {
     setPreloaded(true)
   }
 
-  const toggleSoundPanel = () => {
-    setIsSoundPanelOpen(prev => !prev)
-  }
-
-  const playSound = (sound: Sound) => {
+  // SINGLE playSound function (removed the duplicate)
+  const playSound = async (sound: Sound, volume: number = 0.9) => {
     // If clicking the same sound, toggle it off
     if (selectedSound === sound.id) {
       stopSound()
@@ -87,14 +85,23 @@ export const SoundProvider = ({ children }: { children: React.ReactNode }) => {
       soundsRef.current[selectedSound].stop()
     }
 
-    // Play new sound (should be preloaded)
+    // Play new sound with custom volume
     const howl = soundsRef.current[sound.id]
     if (howl) {
+      howl.volume(volume) // Set volume before playing
+
+      // Apply audio boost for louder output
+      await boostAudio(howl)
+
       howl.play()
       setSelectedSound(sound.id)
     } else {
       console.warn(`Sound ${sound.name} not preloaded yet`)
     }
+  }
+
+  const toggleSoundPanel = () => {
+    setIsSoundPanelOpen(prev => !prev)
   }
 
   const stopSound = () => {

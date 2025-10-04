@@ -1,4 +1,3 @@
-//hooks/useVoiceAssistant.ts
 "use client"
 
 import { useState, useCallback, useEffect } from 'react'
@@ -23,6 +22,74 @@ interface ConversationContext {
   storedConversation: ConversationItem[]
 }
 
+// Time formatting function
+const formatTimeResponse = (date: Date): string => {
+  const hours = date.getHours();
+  const minutes = date.getMinutes();
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  const formattedHours = hours % 12 || 12;
+  const formattedMinutes = minutes.toString().padStart(2, '0');
+  
+  return `It's ${formattedHours}:${formattedMinutes} ${ampm}`;
+};
+
+// Date formatting function
+const formatDateResponse = (date: Date): string => {
+  const options: Intl.DateTimeFormatOptions = { 
+    weekday: 'long', 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric' 
+  };
+  return `Today is ${date.toLocaleDateString('en-US', options)}`;
+};
+
+// Basic command processor
+class VoiceCommandProcessor {
+  static processBasicCommand(command: string): string | null {
+    const lowerCommand = command.toLowerCase().trim();
+    
+    // Time commands
+    if (lowerCommand.includes('time') || lowerCommand.includes('what time')) {
+      return formatTimeResponse(new Date());
+    }
+    
+    // Date commands
+    if (lowerCommand.includes('date') || lowerCommand.includes('what date') || lowerCommand.includes('today\'s date')) {
+      return formatDateResponse(new Date());
+    }
+    
+    // Day command
+    if (lowerCommand.includes('what day') || lowerCommand.includes('which day')) {
+      const today = new Date();
+      const dayName = today.toLocaleDateString('en-US', { weekday: 'long' });
+      return `Today is ${dayName}`;
+    }
+    
+    // Greetings
+    if (lowerCommand.includes('hello') || lowerCommand.includes('hi') || lowerCommand.includes('hey')) {
+      const hour = new Date().getHours();
+      let timeOfDay = 'day';
+      if (hour < 12) timeOfDay = 'morning';
+      else if (hour < 17) timeOfDay = 'afternoon';
+      else timeOfDay = 'evening';
+      return `Good ${timeOfDay}! How can I help you today?`;
+    }
+    
+    // How are you
+    if (lowerCommand.includes('how are you') || lowerCommand.includes('how do you do')) {
+      return "I'm doing great! Ready to help you be more productive. What can I do for you?";
+    }
+    
+    // Thank you
+    if (lowerCommand.includes('thank') || lowerCommand.includes('thanks')) {
+      return "You're welcome! Happy to help. Is there anything else you need?";
+    }
+    
+    return null;
+  }
+}
+
 // Get stored conversation from localStorage
 const getStoredConversation = (): ConversationItem[] => {
   if (typeof window === 'undefined') return [];
@@ -31,7 +98,6 @@ const getStoredConversation = (): ConversationItem[] => {
     const stored = localStorage.getItem('focusflow_conversation');
     if (stored) {
       const parsed = JSON.parse(stored);
-      // Convert timestamp strings back to Date objects
       return parsed.map((item: any) => ({
         ...item,
         timestamp: new Date(item.timestamp)
@@ -54,20 +120,6 @@ const saveConversation = (conversation: ConversationItem[]) => {
   }
 };
 
-// Clear old conversations (keep only last 24 hours)
-const cleanupOldConversations = () => {
-  const conversation = getStoredConversation();
-  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  
-  const filtered = conversation.filter(item => 
-    new Date(item.timestamp) > twentyFourHoursAgo
-  );
-  
-  if (filtered.length !== conversation.length) {
-    saveConversation(filtered);
-  }
-};
-
 let conversationContext: ConversationContext = {
   lastTopic: '',
   pendingConfirmation: false,
@@ -86,7 +138,6 @@ export const useVoiceAssistant = () => {
 
   // Load conversation on mount
   useEffect(() => {
-    cleanupOldConversations();
     const stored = getStoredConversation();
     setConversation(stored);
     conversationContext.storedConversation = stored;
@@ -101,7 +152,6 @@ export const useVoiceAssistant = () => {
   const addToConversation = useCallback((newItem: ConversationItem) => {
     setConversation(prev => {
       const updated = [...prev, newItem];
-      // Keep only last 50 messages to prevent storage overflow
       if (updated.length > 50) {
         return updated.slice(-50);
       }
@@ -115,7 +165,7 @@ export const useVoiceAssistant = () => {
     conversationContext.storedConversation = [];
   }, []);
 
-  // Save conversation to database (without using hooks)
+  // Save conversation to database
   const saveConversationToDB = useCallback(async (conversation: ConversationItem[]) => {
     if (!user) return;
     
@@ -201,22 +251,20 @@ export const useVoiceAssistant = () => {
       return "[STOPPED]";
     }
 
-    // Handle clear conversation command
-    if (command.toLowerCase().includes('clear conversation') || 
-        command.toLowerCase().includes('delete history')) {
-      clearConversation();
-      return "I've cleared our conversation history.";
+    // Process basic commands first
+    const basicResponse = VoiceCommandProcessor.processBasicCommand(command);
+    if (basicResponse) {
+      return basicResponse;
     }
 
     setIsProcessing(true);
     
     // Add user message to conversation
-    const userMessage: ConversationItem = {
+    addToConversation({
       type: 'user',
       message: command,
       timestamp: new Date()
-    };
-    addToConversation(userMessage);
+    });
     
     conversationContext.conversationHistory.push(command);
     
@@ -278,7 +326,7 @@ export const useVoiceAssistant = () => {
           userId: user.id,
           context: {
             ...conversationContext,
-            fullConversation: conversation.slice(-10) // Send last 10 messages for context
+            fullConversation: conversation.slice(-10)
           }
         })
       });
@@ -303,16 +351,15 @@ export const useVoiceAssistant = () => {
     } finally {
       setIsProcessing(false);
     }
-  }, [user, theme, toggleTheme, addToConversation, clearConversation, conversation, saveConversationToDB]);
+  }, [user, theme, toggleTheme, addToConversation, conversation, saveConversationToDB]);
 
-  // Function to add assistant responses to conversation
+  // SINGLE addAssistantResponse function (no duplicates)
   const addAssistantResponse = useCallback((response: string) => {
-    const assistantMessage: ConversationItem = {
+    addToConversation({
       type: 'assistant',
       message: response,
       timestamp: new Date()
-    };
-    addToConversation(assistantMessage);
+    });
   }, [addToConversation]);
 
   return {

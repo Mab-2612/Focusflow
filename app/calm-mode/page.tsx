@@ -44,12 +44,12 @@ export default function CalmModePage() {
   useEffect(() => {
     const inSound = new Howl({
       src: ['/audio/breathe-in.mp3'],
-      volume: 0.6,
+      volume: 0.9,
       preload: true
     })
     const outSound = new Howl({
       src: ['/audio/breathe-out.mp3'],
-      volume: 0.6,
+      volume: 0.9,
       preload: true
     })
 

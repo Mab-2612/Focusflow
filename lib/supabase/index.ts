@@ -1,3 +1,5 @@
+// lib/supabase/index.ts
+
 // For client-side usage
 export { supabase } from './client'
 

@@ -1,4 +1,3 @@
-// hooks/useGoogleTTS.ts - NO FALLBACK VERSION
 "use client"
 
 import { useState, useCallback, useRef } from 'react'
@@ -22,6 +21,36 @@ export const useGoogleTTS = () => {
       console.error('Base64 conversion error:', error)
       throw new Error('Invalid base64 audio data')
     }
+  }
+
+  // Fallback to browser speech synthesis
+  const fallbackSpeak = (text: string, onEnd?: () => void) => {
+    if (!('speechSynthesis' in window)) {
+      console.error('Speech synthesis not available');
+      onEnd?.();
+      return;
+    }
+
+    // Stop any current speech
+    window.speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 0.9;
+    utterance.pitch = 1.0;
+    utterance.volume = 0.8;
+
+    utterance.onend = () => {
+      setIsSpeaking(false);
+      onEnd?.();
+    };
+
+    utterance.onerror = () => {
+      setIsSpeaking(false);
+      onEnd?.();
+    };
+
+    window.speechSynthesis.speak(utterance);
+    setIsSpeaking(true);
   }
 
   const speak = useCallback(async (text: string, onEnd?: () => void) => {
@@ -50,6 +79,11 @@ export const useGoogleTTS = () => {
         })
       })
 
+      // Check if response is OK
+      if (!response.ok) {
+        throw new Error(`TTS API returned ${response.status}`);
+      }
+
       const data = await response.json()
 
       if (data.success && data.audioContent) {
@@ -70,34 +104,40 @@ export const useGoogleTTS = () => {
           setIsSpeaking(false)
           onEnd?.()
           URL.revokeObjectURL(audioUrl)
-          // NO FALLBACK - just stop
+          // Try fallback
+          fallbackSpeak(text, onEnd);
         }
         
         await audio.play().catch((error) => {
           console.error('Audio play failed:', error);
           setIsSpeaking(false)
           onEnd?.()
-          // NO FALLBACK - just stop
+          // Try fallback
+          fallbackSpeak(text, onEnd);
         })
       } else {
-        console.error('TTS API failed');
-        setIsSpeaking(false)
-        onEnd?.()
-        // NO FALLBACK - just stop
+        console.error('TTS API failed:', data.error);
+        // Use fallback
+        fallbackSpeak(text, onEnd);
       }
 
     } catch (error) {
-      console.error('TTS error:', error)
+      console.error('TTS error, using fallback:', error)
       setIsSpeaking(false)
-      onEnd?.()
-      // NO FALLBACK - just stop
+      // Use browser fallback
+      fallbackSpeak(text, onEnd);
     }
   }, [])
 
   const stopSpeaking = useCallback(() => {
+    // Stop Google TTS
     if (audioRef.current) {
       audioRef.current.pause()
       audioRef.current = null
+    }
+    // Stop browser synthesis
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
     }
     setIsSpeaking(false)
   }, [])

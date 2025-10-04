@@ -1,9 +1,19 @@
-//components/GlobalSoundControl.tsx
 "use client"
 
 import { useSound } from '@/contexts/SoundContext'
 import { useTheme } from '@/components/ThemeContext'
+import { useAuth } from '@/hooks/useAuth'
 import { useEffect, useRef, useState } from 'react'
+
+// Safe theme hook that doesn't throw errors
+const useSafeTheme = () => {
+  try {
+    return useTheme()
+  } catch (error) {
+    // Return default theme if ThemeProvider is not available
+    return { theme: 'light' }
+  }
+}
 
 export default function GlobalSoundControl() {
   const { 
@@ -15,10 +25,26 @@ export default function GlobalSoundControl() {
     playSound
   } = useSound()
   
-  const { theme } = useTheme()
+  const { theme } = useSafeTheme() // Use safe theme hook
+  const { user } = useAuth()
   const panelRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
   const [isMobile, setIsMobile] = useState(false)
+  const [volume, setVolume] = useState(0.9)
+  const [isVisible, setIsVisible] = useState(false)
+
+  // Only show after user is logged in and page is loaded
+  useEffect(() => {
+    if (user) {
+      const timer = setTimeout(() => {
+        setIsVisible(true)
+      }, 3000) // Show after 3 seconds
+
+      return () => clearTimeout(timer)
+    } else {
+      setIsVisible(false)
+    }
+  }, [user])
 
   // Check if mobile
   useEffect(() => {
@@ -83,6 +109,8 @@ export default function GlobalSoundControl() {
     transition: 'all 0.1s ease',
     transform: selectedSound === soundId ? 'scale(0.98)' : 'scale(1)'
   })
+
+  if (!isVisible) return null
 
   // Container styles
   const containerStyle = {
@@ -225,37 +253,6 @@ export default function GlobalSoundControl() {
         @keyframes pulse {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.5; }
-        }
-
-        /* Mobile responsiveness */
-        @media (max-width: 768px) {
-          .sound-panel {
-            position: fixed !important;
-            top: 70px !important;
-            right: 10px !important;
-            left: 10px !important;
-            min-width: auto !important;
-            max-width: calc(100vw - 20px) !important;
-            max-height: 60vh !important;
-            z-index: 1001 !important;
-          }
-        }
-
-        @media (max-width: 480px) {
-          .sound-control-button {
-            width: 40px !important;
-            height: 40px !important;
-            font-size: 16px !important;
-          }
-          
-          .sound-panel {
-            padding: 12px !important;
-            top: 60px !important;
-            right: 8px !important;
-            left: 8px !important;
-            max-width: calc(100vw - 16px) !important;
-            max-height: 55vh !important;
-          }
         }
       `}</style>
     </>

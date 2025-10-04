@@ -1,4 +1,3 @@
-//components/Navbar.tsx
 "use client"
 
 import Link from 'next/link'
@@ -14,8 +13,6 @@ export default function Navbar({ onTaskAdded }: NavbarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [hoveredItem, setHoveredItem] = useState<string | null>(null)
-  const [isAddHovered, setIsAddHovered] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
 
   // Detect mobile screen size
@@ -30,19 +27,15 @@ export default function Navbar({ onTaskAdded }: NavbarProps) {
     return () => window.removeEventListener('resize', checkMobile)
   }, [])
 
+  // Updated nav items with Planning page
   const navItems = [
     { href: '/dashboard', icon: '🏠', label: 'Dashboard' },
     { href: '/pomodoro', icon: '⏰', label: 'Pomodoro' },
     { href: '/calm-mode', icon: '🧘', label: 'Calm Mode' },
-    { href: '/voice-assistant', icon: '🎤', label: 'Voice Assistant' },
+    { href: '/chat', icon: '💬', label: 'Chat' }, // Changed from voice-assistant to chat
+    { href: '/planning', icon: '📅', label: 'Planning' }, // Added planning page
     { href: '/profile', icon: '👤', label: 'Profile' },
   ]
-
-  // Optimized navigation with prefetching
-  const handleNavigation = (href: string) => {
-    router.prefetch(href)
-    router.push(href)
-  }
 
   const navStyle = {
     position: 'fixed' as const,
@@ -55,34 +48,29 @@ export default function Navbar({ onTaskAdded }: NavbarProps) {
     padding: isMobile ? '6px' : '8px',
     display: 'flex',
     alignItems: 'center',
-    gap: isMobile ? '16px' : '24px',
+    gap: isMobile ? '12px' : '16px',
     zIndex: 10,
-    transition: 'all 0.3s ease'
   }
 
-  const getNavItemStyle = (isActive: boolean, itemHref: string) => {
-    const isHovered = hoveredItem === itemHref;
-    return {
-      padding: isMobile ? '10px' : '12px',
-      borderRadius: isMobile ? '10px' : '12px',
-      backgroundColor: isActive ? '#dbeafe' : isHovered ? '#f3f4f6' : 'transparent',
-      color: isActive ? '#2563eb' : '#4b5563',
-      textDecoration: 'none',
-      fontSize: isMobile ? '20px' : '24px',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      width: isMobile ? '40px' : '48px',
-      height: isMobile ? '40px' : '48px',
-      transition: 'all 0.2s ease',
-      cursor: 'pointer',
-      transform: isHovered ? 'scale(1.1)' : 'scale(1)'
-    }
-  }
+  const getNavItemStyle = (isActive: boolean) => ({
+    padding: isMobile ? '10px' : '12px',
+    borderRadius: isMobile ? '10px' : '12px',
+    backgroundColor: isActive ? '#dbeafe' : 'transparent',
+    color: isActive ? '#2563eb' : '#4b5563',
+    textDecoration: 'none',
+    fontSize: isMobile ? '20px' : '24px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: isMobile ? '40px' : '48px',
+    height: isMobile ? '40px' : '48px',
+    transition: 'all 0.2s ease',
+    cursor: 'pointer',
+  })
 
   const addButtonStyle = {
     padding: isMobile ? '10px' : '12px',
-    backgroundColor: isAddHovered ? '#1d4ed8' : '#2563eb',
+    backgroundColor: '#2563eb',
     color: 'white',
     borderRadius: isMobile ? '10px' : '12px',
     border: 'none',
@@ -93,8 +81,6 @@ export default function Navbar({ onTaskAdded }: NavbarProps) {
     justifyContent: 'center',
     width: isMobile ? '40px' : '48px',
     height: isMobile ? '40px' : '48px',
-    transition: 'all 0.2s ease',
-    transform: isAddHovered ? 'scale(1.1)' : 'scale(1)'
   }
 
   return (
@@ -106,11 +92,9 @@ export default function Navbar({ onTaskAdded }: NavbarProps) {
           return (
             <div
               key={item.href}
-              onClick={() => handleNavigation(item.href)}
-              style={getNavItemStyle(isActive, item.href)}
+              onClick={() => router.push(item.href)}
+              style={getNavItemStyle(isActive)}
               title={item.label}
-              onMouseEnter={() => setHoveredItem(item.href)}
-              onMouseLeave={() => setHoveredItem(null)}
             >
               {item.icon}
             </div>
@@ -121,8 +105,6 @@ export default function Navbar({ onTaskAdded }: NavbarProps) {
           onClick={() => setIsModalOpen(true)}
           style={addButtonStyle}
           title="Add Task"
-          onMouseEnter={() => setIsAddHovered(true)}
-          onMouseLeave={() => setIsAddHovered(false)}
         >
           +
         </button>
@@ -131,11 +113,7 @@ export default function Navbar({ onTaskAdded }: NavbarProps) {
       <AddTaskModal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)}
-        onTaskAdded={() => {
-          if (onTaskAdded) {
-            onTaskAdded()
-          }
-        }}
+        onTaskAdded={() => onTaskAdded?.()}
       />
     </>
   )

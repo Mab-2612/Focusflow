@@ -1,3 +1,4 @@
+"components/SimpleAnalyticsDashboard.tsx"
 "use client"
 
 import { useAnalyticsStore } from '@/lib/analyticsStore'

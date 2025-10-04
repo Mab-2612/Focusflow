@@ -1,6 +1,5 @@
+// services/taskService.ts
 import { supabase } from '@/lib/supabase/client'
-
-// const supabase = createClient()
 
 // Interfaces
 export interface Task {

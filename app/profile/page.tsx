@@ -1,3 +1,4 @@
+//app/profile/page.tsx
 "use client"
 
 import { useTheme } from '@/components/ThemeContext'
@@ -297,18 +298,22 @@ export default function ProfilePage() {
     try {
       const { error } = await supabase.auth.updateUser({
         data: { 
-          full_name: profileData.name,
-          name: profileData.name 
+          full_name: profileData.name.trim(),
+          name: profileData.name.trim()
         }
       });
       
       if (error) {
+        console.error('Profile update error:', error);
         setProfileSaveStatus('error');
       } else {
         setProfileSaveStatus('success');
+        // Update local user metadata
+        await supabase.auth.refreshSession();
         setTimeout(() => setProfileSaveStatus('idle'), 2000);
       }
     } catch (error) {
+      console.error('Unexpected error:', error);
       setProfileSaveStatus('error');
     } finally {
       setIsSavingProfile(false);
@@ -349,7 +354,7 @@ export default function ProfilePage() {
       value = parseInt(value) || 0
     }
     
-    // Update local state immediately for responsive UI
+    // Update local state immediately
     setPreferences(prev => ({
       ...prev,
       [key]: value
@@ -362,9 +367,15 @@ export default function ProfilePage() {
       }
     }
 
-    // Save to Supabase
+    // Save to Supabase with error handling
     if (user) {
       try {
+        // Validate user ID
+        if (!isValidUUID(user.id)) {
+          console.error('Invalid user ID format');
+          return;
+        }
+
         const { error } = await supabase
           .from('user_preferences')
           .upsert({
@@ -379,21 +390,22 @@ export default function ProfilePage() {
           })
 
         if (error) {
-          console.error('Error saving preference:', error)
-          // Revert local change if save fails
+          console.error('Error saving preference:', error.message || error);
+          // Revert local change
           setPreferences(prev => ({
             ...prev,
-            [key]: key === 'dark_mode' ? (theme === 'dark') : preferences[key]
+            [key]: preferences[key] // Revert to previous value
           }))
         } else {
           setSaveStatus('success')
           setTimeout(() => setSaveStatus('idle'), 2000)
         }
       } catch (error) {
-        console.error('Error saving preference:', error)
+        console.error('Unexpected error saving preference:', error);
+        // Revert local change
         setPreferences(prev => ({
           ...prev,
-          [key]: key === 'dark_mode' ? (theme === 'dark') : preferences[key]
+          [key]: preferences[key]
         }))
       }
     }
@@ -586,37 +598,39 @@ export default function ProfilePage() {
               
               <div style={toggleContainerStyle}>
                 <span style={toggleLabelStyle}>Auto Start Breaks</span>
-                <div className="toggle-switch">
+                <label className="toggle-switch">
                   <input 
                     type="checkbox" 
-                    id="auto-break"
                     checked={preferences.auto_break_enabled}
                     onChange={(e) => handlePreferenceChange('auto_break_enabled', e.target.checked)}
                   />
                   <span className="toggle-slider"></span>
-                </div>
+                </label>
               </div>
 
               <div style={toggleContainerStyle}>
                 <span style={toggleLabelStyle}>Sound Effects</span>
-                <div className="toggle-switch">
+                <label className="toggle-switch">
                   <input 
                     type="checkbox" 
-                    id="sound-effects"
                     checked={preferences.sound_effects}
                     onChange={(e) => handlePreferenceChange('sound_effects', e.target.checked)}
                   />
                   <span className="toggle-slider"></span>
-                </div>
+                </label>
               </div>
 
+              {/* Fix duration inputs */}
               <div style={inputGroupStyle}>
                 <label htmlFor="workDuration" style={labelStyle}>Work Duration (minutes)</label>
                 <input 
                   type="number" 
                   id="workDuration"
                   value={preferences.work_duration}
-                  onChange={(e) => handleNumberInput(e, 'work_duration')}
+                  onChange={(e) => {
+                    const value = parseInt(e.target.value) || 25;
+                    handlePreferenceChange('work_duration', value);
+                  }}
                   style={inputStyle}
                   min="5"
                   max="60"
@@ -656,18 +670,17 @@ export default function ProfilePage() {
                 <span style={toggleLabelStyle}>
                   {theme === 'dark' ? 'Dark Mode' : 'Light Mode'}
                 </span>
-                <div className="toggle-switch">
+                <label className="toggle-switch">
                   <input 
                     type="checkbox" 
-                    id="dark-mode"
                     checked={theme === 'dark'}
                     onChange={(e) => {
-                      toggleTheme() // This should update the theme context
-                      handlePreferenceChange('dark_mode', e.target.checked)
+                      toggleTheme();
+                      handlePreferenceChange('dark_mode', e.target.checked);
                     }}
                   />
                   <span className="toggle-slider"></span>
-                </div>
+                </label>
               </div>
             </div>
 

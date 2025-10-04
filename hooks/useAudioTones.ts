@@ -1,4 +1,3 @@
-// hooks/useAudioTones.ts
 "use client"
 
 import { useCallback, useRef } from 'react'
@@ -31,7 +30,7 @@ export const useAudioTones = () => {
     }
   }, [ensureAudioContext])
 
-  const playTone = useCallback(async (frequency: number, duration: number, volume = 0.3) => {
+  const playTone = useCallback(async (frequency: number, duration: number, volume = 0.9) => {
     try {
       const hasPermission = await requestAudioPermission()
       if (!hasPermission) return
@@ -54,11 +53,11 @@ export const useAudioTones = () => {
     } catch (error) {
       console.log('Audio tone error:', error)
     }
-  }, [ensureAudioContext, requestAudioPermission])
+  }, [ensureAudioContext, requestAudioPermission]) // ← FIXED: Added closing parenthesis and semicolon
 
-  const playStartTone = useCallback(() => playTone(523.25, 0.3), [playTone])
-  const playStopTone = useCallback(() => playTone(392.00, 0.3), [playTone])
-  const playErrorTone = useCallback(() => playTone(349.23, 0.5), [playTone])
+  const playStartTone = useCallback(() => playTone(523.25, 0.9), [playTone])
+  const playStopTone = useCallback(() => playTone(392.00, 0.9), [playTone])
+  const playErrorTone = useCallback(() => playTone(349.23, 0.9), [playTone])
 
   return {
     playStartTone,

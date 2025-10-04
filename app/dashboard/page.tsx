@@ -1,3 +1,4 @@
+// app/dashboard/page.tsx
 "use client"
 
 import { useState, useEffect, useCallback } from 'react'
@@ -10,6 +11,22 @@ import LiveProductivityMetrics from '@/components/LiveProductivityMetrics'
 import SimpleAnalyticsDashboard from '@/components/SimpleAnalyticsDashboard'
 import { useAnalyticsStore } from '@/lib/analyticsStore'
 import { supabase } from '@/lib/supabaseClient'
+
+// ADD THIS FUNCTION AT THE TOP LEVEL OF THE FILE (outside the component)
+const getUserDisplayName = (user: any) => {
+  if (!user) return 'Guest';
+  
+  // Try to get name from user_metadata
+  const userName = user.user_metadata?.full_name || 
+                   user.user_metadata?.name || 
+                   user.user_metadata?.user_name;
+  
+  if (userName) return userName;
+  
+  // Fallback to email username
+  const emailName = user.email?.split('@')[0];
+  return emailName || 'User';
+};
 
 export default function DashboardPage() {
   const { theme } = useTheme()
@@ -178,6 +195,22 @@ export default function DashboardPage() {
           tasksCompleted
         })
       }
+
+      // Add this function to get user's display name
+      const getUserDisplayName = () => {
+        if (!user) return 'Guest';
+        
+        // Try to get name from user_metadata
+        const userName = user.user_metadata?.full_name || 
+                        user.user_metadata?.name || 
+                        user.user_metadata?.user_name;
+        
+        if (userName) return userName;
+        
+        // Fallback to email username
+        const emailName = user.email?.split('@')[0];
+        return emailName || 'User';
+      };
 
       // Get completed tasks count
       const { data: tasksData, error: tasksError } = await supabase
@@ -361,7 +394,7 @@ export default function DashboardPage() {
         {/* Welcome Card with Stats */}
         <div style={focusCardStyle}>
           <h2 style={focusTitleStyle}>
-            {user ? `🎯 Welcome back, ${user.email?.split('@')[0]}!` : 'Welcome to FocusFlow!'}
+            {user ? `🎯 Welcome back, ${getUserDisplayName(user)}!` : 'Welcome to FocusFlow!'}
           </h2>
           <p style={focusTextStyle}>
             {user ? `You have ${tasks.urgent.length} urgent tasks, ${tasks.important.length} important tasks, and ${tasks.later.length} tasks for later.` : 'Please sign in to manage your tasks.'}

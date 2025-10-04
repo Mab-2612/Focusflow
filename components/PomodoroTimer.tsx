@@ -1,3 +1,4 @@
+//components/PomodoroTimer.tsx
 "use client"
 
 import { useState, useEffect, useCallback } from 'react'
@@ -54,8 +55,9 @@ export default function PomodoroTimer({ onTimerComplete, compact = false }: Pomo
       }
       
       try {
+        // Validate user ID format
         if (!isValidUUID(user.id)) {
-          console.error('Invalid user ID format');
+          console.log('Invalid user ID format, using default times');
           setDefaultTimes();
           setIsLoading(false);
           return;
@@ -68,9 +70,15 @@ export default function PomodoroTimer({ onTimerComplete, compact = false }: Pomo
           .single()
 
         if (error) {
-          console.error('Error loading preferences:', error);
-          setDefaultTimes();
-        } else if (data) {
+          // Handle specific error cases
+          if (error.code === 'PGRST116') { // No rows returned
+            console.log('No preferences found, using defaults');
+            setDefaultTimes();
+          } else {
+            console.error('Error loading preferences:', error.message || error);
+            setDefaultTimes();
+          }
+        } else if (data?.preferences) {
           const preferences = data.preferences;
           const workDuration = parseInt(preferences.work_duration) || 25;
           const breakDuration = parseInt(preferences.break_duration) || 5;
@@ -84,7 +92,7 @@ export default function PomodoroTimer({ onTimerComplete, compact = false }: Pomo
           setDefaultTimes();
         }
       } catch (error) {
-        console.error('Error loading preferences:', error);
+        console.error('Unexpected error loading preferences:', error);
         setDefaultTimes();
       } finally {
         setIsLoading(false);
