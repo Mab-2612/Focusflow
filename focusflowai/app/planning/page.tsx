@@ -421,7 +421,7 @@ export default function PlanningPage() {
     fontWeight: '500' as const
   })
 
-  // --- STYLE FIX: Replaced 'border' shorthand with long-form properties ---
+  // --- FIXED: Replaced 'border' shorthand with long-form properties ---
   const viewToggleStyle = (isActive: boolean) => ({
     padding: '8px 16px',
     backgroundColor: isActive ? '#3b82f6' : (theme === 'dark' ? '#374151' : '#f3f4f6'),
@@ -451,14 +451,12 @@ export default function PlanningPage() {
         <div className="view-toggler-mobile" style={{ display: 'flex', borderRadius: '8px', overflow: 'hidden', marginBottom: '16px' }}>
           <button 
             onClick={() => setViewMode('agenda')}
-            // STYLE FIX: Removed conflicting 'borderRight'
             style={{...viewToggleStyle(viewMode === 'agenda'), width: '50%', borderRadius: '8px 0 0 8px'}}
           >
             Agenda
           </button>
           <button 
             onClick={() => setViewMode('month')}
-            // FIXED: Renamed "Month" to "Calendar" and fixed style
             style={{...viewToggleStyle(viewMode === 'month'), width: '50%', borderRadius: '0 8px 8px 0', borderLeftWidth: 0}}
           >
             Calendar

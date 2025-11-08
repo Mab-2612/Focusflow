@@ -15,7 +15,7 @@ interface Message {
   timestamp: Date
 }
 
-const MAX_MESSAGES = 50; // Set the message limit
+const MAX_MESSAGES = 50; 
 
 export default function ChatPage() {
   const { theme } = useTheme()
@@ -25,42 +25,83 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([])
   const [inputText, setInputText] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
-  const [isTtsEnabled, setIsTtsEnabled] = useState(true) // Voice output toggle
+  const [isTtsEnabled, setIsTtsEnabled] = useState(true) 
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   // --- REFS ---
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null); 
 
   // --- HOOKS ---
   const { speak, stopSpeaking } = useGoogleTTS()
-  const { processVoiceCommand } = useVoiceAssistant()
+  const { processVoiceCommand } = useVoiceAssistant() // FIXED: Removed underscore
+  
+  const CHAT_HISTORY_KEY = user ? `chatHistory_${user.id}` : null;
 
-  // Add initial welcome message
+  // Load chat history from sessionStorage
   useEffect(() => {
-    setMessages([]) // Start fresh
-  }, [user]) // Re-run if user logs in
+    if (CHAT_HISTORY_KEY) {
+      const storedHistory = sessionStorage.getItem(CHAT_HISTORY_KEY);
+      if (storedHistory) {
+        const parsedHistory = JSON.parse(storedHistory).map((msg: Message) => ({
+          ...msg,
+          timestamp: new Date(msg.timestamp) 
+        }));
+        setMessages(parsedHistory);
+      } else {
+        setMessages([]);
+      }
+    } else {
+      setMessages([]);
+    }
+  }, [CHAT_HISTORY_KEY]);
 
-  // Scroll to bottom when new messages are added
+  // Save chat history to sessionStorage
+  useEffect(() => {
+    if (CHAT_HISTORY_KEY) {
+      if (messages.length > 0) {
+        sessionStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(messages));
+      } else {
+        sessionStorage.removeItem(CHAT_HISTORY_KEY);
+      }
+    }
+  }, [messages, CHAT_HISTORY_KEY]);
+
+  // Scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+  
+  // Auto-focus input on page load
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+  
+  // Re-focus input after assistant finishes replying
+  useEffect(() => {
+    if (!isProcessing) {
+      const timer = setTimeout(() => {
+        inputRef.current?.focus();
+      }, 100); // Small delay to ensure UI is ready
+      return () => clearTimeout(timer);
+    }
+  }, [isProcessing]);
 
-  // Helper function to add a message and enforce history limit
+
+  // --- HANDLERS ---
   const addMessage = (message: Message) => {
     setMessages(prev => {
       const newMessages = [...prev, message];
       if (newMessages.length > MAX_MESSAGES) {
-        // Remove the oldest message (at index 0)
         return newMessages.slice(newMessages.length - MAX_MESSAGES);
       }
       return newMessages;
     });
   };
 
-  // --- HANDLERS ---
   const handleUserMessage = async (content: string) => {
     if (!content.trim() || isProcessing || !user) return
 
-    // Add user message to chat
     const userMessage: Message = {
       id: Date.now().toString(),
       type: 'user',
@@ -68,12 +109,14 @@ export default function ChatPage() {
       timestamp: new Date()
     }
     
-    addMessage(userMessage); // Use the new function
+    addMessage(userMessage);
     setInputText('')
     setIsProcessing(true)
 
+    // Re-focus input immediately after send for mobile keyboard
+    inputRef.current?.focus();
+
     try {
-      // Get response from the assistant hook
       const response = await processVoiceCommand(content)
       
       const assistantMessage: Message = {
@@ -83,9 +126,8 @@ export default function ChatPage() {
         timestamp: new Date()
       }
       
-      addMessage(assistantMessage); // Use the new function
+      addMessage(assistantMessage); 
       
-      // Speak the response if TTS is enabled
       if (isTtsEnabled) {
         await speak(response, () => {})
       }
@@ -98,7 +140,7 @@ export default function ChatPage() {
         content: "Sorry, I encountered an error. Please try again.",
         timestamp: new Date()
       }
-      addMessage(errorMessage); // Use the new function
+      addMessage(errorMessage);
     } finally {
       setIsProcessing(false)
     }
@@ -117,28 +159,29 @@ export default function ChatPage() {
   }
 
   const clearChat = () => {
-    // FIXED: Add confirmation prompt
-    if (window.confirm("Are you sure you want to clear this conversation?")) {
-      setMessages([])
-      stopSpeaking()
+    setShowClearConfirm(true);
+  }
+  
+  const handleConfirmClear = () => {
+    setMessages([])
+    if (CHAT_HISTORY_KEY) {
+      sessionStorage.removeItem(CHAT_HISTORY_KEY);
     }
+    stopSpeaking()
+    setShowClearConfirm(false);
   }
 
   // --- STYLES ---
   const containerStyle = {
     minHeight: '100vh',
-    backgroundColor: theme === 'dark' ? '#0f0f0f' : '#f9fafb', // Lighter dark bg
-    paddingBottom: '80px', // Make space for the new nav bar
-    display: 'flex',
-    flexDirection: 'column' as const,
-    height: '100vh' // Full viewport height
+    backgroundColor: 'var(--bg-primary)', 
   }
 
   const headerStyle = {
-    backgroundColor: theme === 'dark' ? '#111827' : '#ffffff',
-    borderBottom: theme === 'dark' ? '1px solid #374151' : '1px solid #e5e7eb',
+    backgroundColor: 'var(--bg-primary)',
+    borderBottom: `1px solid var(--border-light)`,
     padding: '16px 24px',
-    paddingTop: 'max(16px, env(safe-area-inset-top))', // Respect notch
+    paddingTop: 'max(16px, env(safe-area-inset-top))',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -146,52 +189,53 @@ export default function ChatPage() {
   }
 
   const titleStyle = {
-    fontSize: 'var(--font-lg)', // Use fluid typography
+    fontSize: 'var(--font-lg)',
     fontWeight: '700',
-    color: theme === 'dark' ? '#ffffff' : '#1f2937',
-    margin: 0
+    color: 'var(--text-primary)',
+    margin: 0,
+    textAlign: 'center' as const,
+    flex: 1, 
   }
 
   const chatContainerStyle = {
     maxWidth: '800px',
     margin: '0 auto',
-    padding: '0 20px', // No vertical padding, handled by parent
+    padding: '0 20px',
     width: '100%',
-    flex: 1, // Make chat container fill remaining space
-    display: 'flex',
-    flexDirection: 'column' as const,
-    overflow: 'hidden' // Prevent container from overflowing
   }
 
   const messagesStyle = {
-    flex: 1,
-    overflowY: 'auto' as const,
-    padding: '20px 4px', // Add a little horizontal padding for bubbles
+    paddingTop: '20px',
+    paddingBottom: '200px', // Space for both input and navbar
     display: 'flex',
     flexDirection: 'column' as const,
     gap: '12px'
   }
 
-  // FIXED: Sleek new input bar styles
-  const inputContainerStyle = {
-    display: 'flex',
-    gap: '10px',
-    alignItems: 'center',
-    padding: '16px 0',
+  const floatingInputContainerStyle = {
+    position: 'fixed' as const,
+    bottom: '80px', // Sits just above the 80px navbar
+    left: '0',
+    right: '0',
+    padding: '16px 24px',
     paddingBottom: 'max(16px, env(safe-area-inset-bottom))',
-    borderTop: `1px solid ${theme === 'dark' ? '#374151' : '#e5e7eb'}`,
-    backgroundColor: theme === 'dark' ? '#111827' : '#ffffff', // Match header
+    backgroundColor: 'var(--bg-primary)',
+    background: `linear-gradient(to top, var(--bg-primary) 70%, transparent 100%)`,
   }
 
   const textInputWrapperStyle = {
     flex: 1,
     display: 'flex',
     alignItems: 'center',
-    border: `1px solid ${theme === 'dark' ? '#374151' : '#d1d5db'}`,
-    borderRadius: '24px', // Rounded pill shape
-    backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff',
+    border: `1px solid var(--border-light)`,
+    borderRadius: '24px', 
+    backgroundColor: 'var(--bg-secondary)', 
     paddingLeft: '16px',
-    paddingRight: '8px',
+    paddingRight: '6px',
+    minHeight: '48px', 
+    maxWidth: '800px',
+    margin: '0 auto', 
+    boxShadow: 'var(--shadow-md)',
   }
   
   const textInputStyle = {
@@ -199,10 +243,9 @@ export default function ChatPage() {
     padding: '12px 0',
     border: 'none',
     backgroundColor: 'transparent',
-    color: theme === 'dark' ? '#ffffff' : '#1f2937',
-    fontSize: '16px', // Ensure 16px to prevent mobile zoom
-    height: '48px',
-    outline: 'none', // Remove outline on focus
+    color: 'var(--text-primary)',
+    fontSize: '16px',
+    outline: 'none', 
   }
 
   const sendButtonStyle = {
@@ -210,14 +253,14 @@ export default function ChatPage() {
     backgroundColor: '#3b82f6',
     color: 'white',
     border: 'none',
-    borderRadius: '50%', // Circular button
+    borderRadius: '50%', 
     cursor: 'pointer',
-    width: '32px',
-    height: '32px',
+    width: '40px', 
+    height: '40px', 
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    fontSize: '16px',
+    fontSize: '18px', 
     flexShrink: 0,
     opacity: (isProcessing || !inputText.trim()) ? 0.6 : 1,
     transition: 'all 0.2s ease'
@@ -235,29 +278,26 @@ export default function ChatPage() {
     alignItems: 'center',
     justifyContent: 'center',
     fontSize: '20px',
+    flexShrink: 0 
   }
   
-  // FIXED: Style for the "Clear Chat" button
-  const clearButtonStyle = {
-    ...headerButtonStyle,
-    fontSize: '14px',
+  const clearChatButtonStyle = {
+    fontSize: '12px',
     fontWeight: '500',
-    color: theme === 'dark' ? '#f87171' : '#ef4444', // Red color
-    width: 'auto'
+    color: theme === 'dark' ? '#f87171' : '#ef4444', 
+    width: 'auto',
+    padding: '4px 12px',
+    border: `1px solid var(--border-light)`,
+    borderRadius: '6px',
+    backgroundColor: 'var(--bg-tertiary)',
+    margin: '0 auto', 
+    display: 'block',
   }
 
   return (
     <div style={containerStyle}>
       {/* Header */}
       <header style={headerStyle}>
-        <button
-          onClick={clearChat}
-          style={clearButtonStyle}
-          title="Clear Chat"
-        >
-          Clear
-        </button>
-        <h1 style={titleStyle}>FocusFlow Chat</h1>
         <button
           onClick={toggleTts}
           style={{
@@ -268,6 +308,10 @@ export default function ChatPage() {
         >
           {isTtsEnabled ? '🔊' : '🔇'}
         </button>
+
+        <h1 style={titleStyle}>FocusFlow Chat</h1>
+        
+        <div style={{ ...headerButtonStyle, visibility: 'hidden', pointerEvents: 'none' }} />
       </header>
 
       {/* Chat Container */}
@@ -278,7 +322,6 @@ export default function ChatPage() {
         {/* Messages */}
         <div style={messagesStyle} className="chat-messages">
           
-          {/* FIXED: Show welcome message if chat is blank */}
           {messages.length === 0 && (
             <div style={{
               flex: 1,
@@ -289,10 +332,10 @@ export default function ChatPage() {
               color: theme === 'dark' ? '#4b5563' : '#d1d5db'
             }}>
               <span style={{ fontSize: '64px', marginBottom: '16px' }}>💬</span>
-              <h2 style={{ color: theme === 'dark' ? '#f3f4f6' : '#1f2937', fontSize: 'var(--font-lg)', marginBottom: '8px' }}>
+              <h2 style={{ color: 'var(--text-primary)', fontSize: 'var(--font-lg)', marginBottom: '8px' }}>
                 {user ? "Ask me anything!" : "Please Sign In"}
               </h2>
-              <p style={{ color: theme === 'dark' ? '#9ca3af' : '#6b7280', fontSize: 'var(--font-sm)', textAlign: 'center' }}>
+              <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--font-sm)', textAlign: 'center' }}>
                 {user ? "I can help you add tasks, navigate the app, or answer questions." : "Sign in to start a conversation."}
               </p>
             </div>
@@ -309,14 +352,32 @@ export default function ChatPage() {
               </div>
             </div>
           ))}
+
+          {/* Clear Chat Button (now inside message area) */}
+          {messages.length > 0 && (
+            <div style={{ paddingTop: '8px', paddingBottom: '8px' }}>
+              <button
+                onClick={clearChat}
+                style={clearChatButtonStyle}
+                title="Clear Chat"
+              >
+                Clear Conversation
+              </button>
+            </div>
+          )}
+
           <div ref={messagesEndRef} />
         </div>
+      </div>
 
-        {/* FIXED: New Input Bar Design (Voice Input removed) */}
-        <form onSubmit={handleTextSubmit} style={inputContainerStyle}>
+      {/* Floating Input Bar */}
+      <div style={floatingInputContainerStyle}>
+        <form onSubmit={handleTextSubmit}>
           <div style={textInputWrapperStyle}>
             <input
               type="text"
+              ref={inputRef} 
+              autoFocus={true} 
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               placeholder={user ? "Type your message..." : "Please sign in to chat"}
@@ -325,7 +386,7 @@ export default function ChatPage() {
             />
             <button
               type="submit"
-              style={sendButtonStyle}
+              style={sendButtonStyle} 
               disabled={!inputText.trim() || isProcessing || !user}
               title="Send Message"
             >
@@ -333,15 +394,14 @@ export default function ChatPage() {
                 <div 
                   className="animate-spin"
                   style={{
-                    width: '16px',
-                    height: '16px',
+                    width: '18px',
+                    height: '18px',
                     border: '2px solid rgba(255,255,255,0.3)',
                     borderTop: '2px solid white',
                     borderRadius: '50%',
                   }}
                 /> : 
-                // FIXED: SVG Send Icon (like the image)
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style={{ marginLeft: '2px' }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style={{ marginLeft: '2px' }}>
                   <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
                 </svg>
               }
@@ -349,6 +409,32 @@ export default function ChatPage() {
           </div>
         </form>
       </div>
+      
+      {/* Confirmation Modal */}
+      {showClearConfirm && (
+        <div className="modal-overlay">
+          <div className="chat-confirm-modal">
+            <h2 className="chat-confirm-title">Clear Conversation?</h2>
+            <p className="chat-confirm-text">
+              Are you sure you want to delete all messages? This action cannot be undone.
+            </p>
+            <div className="chat-confirm-buttons">
+              <button
+                className="chat-confirm-button chat-confirm-button-cancel"
+                onClick={() => setShowClearConfirm(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="chat-confirm-button chat-confirm-button-danger"
+                onClick={handleConfirmClear}
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Navbar />
     </div>

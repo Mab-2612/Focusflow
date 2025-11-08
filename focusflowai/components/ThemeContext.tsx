@@ -1,3 +1,4 @@
+// components/ThemeContext.tsx
 "use client"
 
 import React, { createContext, useContext, useState, useEffect } from 'react'
@@ -39,7 +40,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (mounted) {
-      document.documentElement.classList.toggle('dark', resolvedTheme === 'dark')
+      // FIXED: Use data-theme attribute to match globals.css
+      document.documentElement.setAttribute('data-theme', resolvedTheme)
       
       // Update meta theme color
       const metaThemeColor = document.querySelector('meta[name="theme-color"]')
@@ -108,7 +110,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
     const handleChange = () => {
-      document.documentElement.classList.toggle('dark', getSystemTheme() === 'dark')
+      // FIXED: Use data-theme attribute
+      document.documentElement.setAttribute('data-theme', getSystemTheme())
     }
 
     mediaQuery.addEventListener('change', handleChange)

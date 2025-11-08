@@ -583,3 +583,77 @@ select:focus-visible {
   background-color: var(--accent-primary);
   color: white;
 }
+
+/* app/globals.css (add this at the end) */
+
+/* --- CHAT CLEAR CONFIRM MODAL --- */
+/* app/globals.css (add this at the end) */
+
+/* --- CHAT CLEAR CONFIRM MODAL --- */
+.chat-confirm-modal {
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  width: 90%;
+  max-width: 400px;
+  box-shadow: var(--shadow-lg);
+  text-align: center;
+  animation: fadeIn 0.2s ease-out; /* Use existing animation */
+}
+
+/* Add a slide-up animation if it's not already in globals.css */
+@keyframes slide-up-in {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.chat-confirm-modal {
+  animation: slide-up-in 0.2s ease-out;
+}
+
+
+.chat-confirm-title {
+  font-size: var(--font-lg);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+}
+
+.chat-confirm-text {
+  font-size: var(--font-sm);
+  color: var(--text-secondary);
+  margin-bottom: 24px;
+}
+
+.chat-confirm-buttons {
+  display: flex;
+  gap: 12px;
+}
+
+.chat-confirm-button {
+  flex: 1;
+  padding: 12px;
+  font-size: 16px;
+  font-weight: 500;
+  border-radius: var(--radius-md);
+  border: none;
+  cursor: pointer;
+  min-height: 44px;
+}
+
+.chat-confirm-button-danger {
+  background-color: var(--accent-danger);
+  color: white;
+}
+
+.chat-confirm-button-cancel {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+}
