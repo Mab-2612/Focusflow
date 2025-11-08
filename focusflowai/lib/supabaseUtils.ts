@@ -71,6 +71,7 @@ export const updateUserPreferences = async (
 /**
  * Example helper to structure preferences response
  * Can add default values, formatting, etc.
+ * ...
  */
 export const formatPreferences = (prefs: UserPreferences | null) => {
   return {
