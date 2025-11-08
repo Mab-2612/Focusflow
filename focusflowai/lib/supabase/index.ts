@@ -1,7 +1,6 @@
-// lib/supabase/index.ts
-
-// For client-side usage
+// client-side
 export { supabase } from './client'
 
-// For server-side usage
-export { createServerSideClient } from './server'
+// server-side
+export { supabaseServer } from './server'
+export { createSSRClient } from './serverSSR'

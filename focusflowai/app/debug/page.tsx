@@ -10,14 +10,12 @@ export default function DebugPage() {
   const [envVars, setEnvVars] = useState<any>({})
 
   useEffect(() => {
-    // Check environment variables (client-side accessible ones)
     setEnvVars({
       supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
       hasAnonKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
       currentHost: window.location.host
     })
 
-    // Check current session
     const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession()
       setSessionInfo(session)
@@ -50,10 +48,12 @@ export default function DebugPage() {
           .join('\n')}
       </pre>
 
-      <button onClick={() => {
-        supabase.auth.signOut()
-        window.location.reload()
-      }}>
+      <button
+        onClick={() => {
+          supabase.auth.signOut()
+          window.location.reload()
+        }}
+      >
         Sign Out & Refresh
       </button>
     </div>

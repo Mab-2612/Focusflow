@@ -1,5 +1,5 @@
 // services/userPreferences.ts
-import { supabase } from '@/lib/supabaseClient';
+import { supabase } from '@/lib/supabase/client'
 
 export const getUserPreferences = async (userId: string) => {
   try {
