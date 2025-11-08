@@ -19,7 +19,7 @@ export async function GET(request: Request) {
       return NextResponse.redirect(new URL('/onboarding?error=auth_failed', requestUrl.origin))
     }
     
-    // ✅ FIX: Use requestUrl.origin to redirect to the correct host.
+    // ✅ FIX: Use requestUrl.origin to redirect to the correct host...
     return NextResponse.redirect(new URL('/dashboard', requestUrl.origin))
   } catch (error) {
     console.error('Unexpected error in auth callback:', error)
