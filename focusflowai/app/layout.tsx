@@ -29,7 +29,7 @@ export default function RootLayout({
         <ThemeProvider>
           <SoundProvider>
             <AppProvider>
-              <AuthGuard>
+              {/* <AuthGuard> */}
                 <PageTransition>
                   <GlobalElementsLoader />
                   <GlobalThemeToggle />
@@ -37,7 +37,7 @@ export default function RootLayout({
                   {/* GlobalSoundControl has been removed (moved to Navbar) */}
                   {children}
                 </PageTransition>
-              </AuthGuard>
+              {/* </AuthGuard> */}
             </AppProvider>
           </SoundProvider>
         </ThemeProvider>
