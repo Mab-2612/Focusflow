@@ -14,6 +14,11 @@ import './globals.css'
 export const metadata: Metadata = {
   title: 'FocusFlow - AI Productivity Assistant',
   description: 'Your AI-powered productivity companion with voice control, task management, and focus tools',
+  icons: {
+    icon: '/favicon.ico',
+    shortcut: '/favicon.ico',
+    apple: '/apple-touch-icon.png',
+  },
 }
 
 // Add this viewport export
