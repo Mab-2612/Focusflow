@@ -2,10 +2,8 @@ import type { Metadata } from 'next'
 import { ThemeProvider } from '@/components/ThemeContext'
 import { SoundProvider } from '@/contexts/SoundContext'
 import AppProvider from '@/components/AppProvider'
-import AuthGuard from '@/components/AuthGuard'
+// import AuthGuard from '@/components/AuthGuard' // COMMENT OUT
 import PageTransition from '@/components/PageTransition'
-// import GlobalSoundControl from '@/components/GlobalSoundControl' // REMOVED
-// import GlobalVoiceAssistant from '@/components/GlobalVoiceAssistant' // REMOVED
 import GlobalThemeToggle from '@/components/GlobalThemeToggle'
 import GlobalElementsLoader from '@/components/GlobalElementsLoader'
 import './globals.css'
@@ -29,12 +27,11 @@ export default function RootLayout({
         <ThemeProvider>
           <SoundProvider>
             <AppProvider>
+              {/* AUTHGUARD COMMENTED OUT - NO REDIRECT LOOPS */}
               {/* <AuthGuard> */}
                 <PageTransition>
                   <GlobalElementsLoader />
                   <GlobalThemeToggle />
-                  {/* GlobalVoiceAssistant has been removed */}
-                  {/* GlobalSoundControl has been removed (moved to Navbar) */}
                   {children}
                 </PageTransition>
               {/* </AuthGuard> */}
