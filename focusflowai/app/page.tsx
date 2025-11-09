@@ -1,6 +1,9 @@
-//app/page.tsx
-import { redirect } from 'next/navigation'
-
+// app/page.tsx - TEMPORARY FIX
 export default function Home() {
-  redirect('/onboarding')
+  return (
+    <div>
+      <h1>FocusFlow - Loading...</h1>
+      <p>If you see this, the redirect loop is fixed!</p>
+    </div>
+  )
 }
