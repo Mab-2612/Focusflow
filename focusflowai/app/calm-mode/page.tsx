@@ -111,7 +111,7 @@ export default function CalmModePage() {
   }, [isBreathing, breathInSound, breathOutSound])
 
   const containerStyle = {
-    minHeight: '100vh',
+    // FIXED: Removed minHeight: '100vh'
     backgroundColor: theme === 'dark' ? '#111827' : '#f9fafb',
     display: 'flex',
     flexDirection: 'column' as const,
@@ -194,7 +194,6 @@ export default function CalmModePage() {
 
   return (
     <div 
-      // 👇 USE NEW GLOBAL CLASS
       className="page-container"
       style={containerStyle}
     >

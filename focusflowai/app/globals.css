@@ -1,4 +1,4 @@
-/* app/globals.css - COMPREHENSIVE MOBILE-FIRST UPDATE */
+/* app/globals.css - (REPLACE THE ENTIRE FILE) */
 
 /* ===== RESET & BASE STYLES ===== */
 *, *::before, *::after {
@@ -7,12 +7,9 @@
   padding: 0;
 }
 
-/* ===== FLUID TYPOGRAPHY (SCALES WITH SCREEN) ===== */
+/* ===== FLUID TYPOGRAPHY ===== */
 :root {
-  /* Set base font size for scaling */
   font-size: 16px; 
-
-  /* Mobile Font Sizes (Viewport Width based) */
   --font-xs: clamp(0.75rem, 0.5vw + 0.65rem, 0.875rem);
   --font-sm: clamp(0.875rem, 0.5vw + 0.775rem, 1rem);
   --font-base: clamp(1rem, 0.5vw + 0.9rem, 1.125rem);
@@ -63,8 +60,10 @@
 }
 
 html, body, #__next {
-  height: 100%;
   width: 100%;
+  /* FIXED: Use min-height, not height, to prevent scroll issues */
+  min-height: 100%; 
+  height: auto;
 }
 
 body {
@@ -73,14 +72,209 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   line-height: 1.6;
-  font-size: var(--font-base); /* Apply fluid font size */
+  font-size: var(--font-base);
   color: var(--text-primary);
   background-color: var(--bg-primary);
   text-rendering: optimizeLegibility;
-  
-  /* CRITICAL FOR MOBILE: Prevent horizontal scroll and bounce */
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
+}
+
+/* ===== NEW: MOBILE HEADER ===== */
+.mobile-header {
+  position: sticky;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  padding-top: max(12px, env(safe-area-inset-top));
+  background-color: var(--bg-primary);
+  border-bottom: 1px solid var(--border-light);
+  z-index: 900;
+}
+
+.mobile-menu-button {
+  padding: 8px;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-primary);
+}
+.mobile-menu-button:hover {
+  background-color: var(--bg-tertiary);
+}
+
+.mobile-header-title {
+  font-size: var(--font-lg);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+@media (min-width: 768px) {
+  .mobile-header {
+    display: none; /* Hide mobile header on desktop */
+  }
+}
+
+/* ===== NEW: SIDEBAR ===== */
+.sidebar-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 1010;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+.sidebar-backdrop.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 300px;
+  max-width: 85vw;
+  background-color: var(--bg-primary);
+  z-index: 1011;
+  transform: translateX(-100%);
+  transition: transform 0.3s ease;
+  display: flex;
+  flex-direction: column;
+}
+.sidebar.open {
+  transform: translateX(0);
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  padding-top: max(16px, env(safe-area-inset-top));
+  border-bottom: 1px solid var(--border-light);
+  flex-shrink: 0;
+}
+.sidebar-title {
+  font-size: var(--font-lg);
+  font-weight: 600;
+}
+.sidebar-close-button {
+  font-size: 28px;
+  color: var(--text-tertiary);
+  width: 32px;
+  height: 32px;
+}
+
+.sidebar-content {
+  padding: 16px;
+  overflow-y: auto;
+  flex-grow: 1;
+}
+
+.sidebar-user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background-color: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  margin-bottom: 16px;
+}
+.sidebar-user-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background-color: var(--accent-primary);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.sidebar-user-details {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.sidebar-user-name {
+  font-size: var(--font-sm);
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sidebar-user-email {
+  font-size: var(--font-xs);
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 24px;
+}
+.sidebar-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  font-size: var(--font-base);
+  color: var(--text-primary);
+  text-align: left;
+}
+.sidebar-nav-item:hover {
+  background-color: var(--bg-tertiary);
+}
+
+.sidebar-theme-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px;
+  background-color: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  font-size: var(--font-sm);
+}
+
+.sidebar-footer {
+  padding: 16px;
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--border-light);
+  flex-shrink: 0;
+}
+.sidebar-signout-button {
+  width: 100%;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  background-color: var(--bg-tertiary);
+  color: var(--accent-danger);
+  font-size: var(--font-base);
+  font-weight: 500;
+  text-align: center;
+}
+.sidebar-signout-button:hover {
+  background-color: var(--border-light);
 }
 
 /* ===== CORE MOBILE LAYOUT ===== */
@@ -88,39 +282,77 @@ body {
   width: 100%;
   max-width: 1200px;
   margin: 0 auto;
-  /* Add padding that respects the mobile safe areas (notch/home bar) */
-  padding: 24px;
-  padding-left: max(24px, env(safe-area-inset-left));
-  padding-right: max(24px, env(safe-area-inset-right));
-  /* Add space at the bottom so content doesn't hide behind the new nav bar */
+  padding: 16px;
+  padding-left: max(16px, env(safe-area-inset-left));
+  padding-right: max(16px, env(safe-area-inset-right));
   padding-bottom: 120px; 
+  /* FIXED: Set a min-height for pages that are shorter than the viewport */
+  min-height: calc(100vh - 140px); /* 100vh minus header and navbar */
+}
+@media (min-width: 768px) {
+  .page-container {
+    padding: 32px;
+    padding-bottom: 32px;
+    min-height: calc(100vh - 64px); /* 100vh minus desktop header */
+  }
 }
 
-/* ===== MOBILE-NATIVE NAVIGATION BAR ===== */
+/* ===== REDESIGNED: BOTTOM NAVIGATION BAR ===== */
 .navbar {
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
-  height: 80px; /* Taller for easier touch */
+  height: 80px; 
   background-color: var(--bg-primary);
   border-top: 1px solid var(--border-light);
   box-shadow: 0 -4px 15px rgba(0, 0, 0, 0.05);
   
   display: flex;
   align-items: center;
-  justify-content: space-around; /* Distribute items evenly */
+  justify-content: space-between;
   
-  /* Respect the home bar / bottom safe area on mobile */
-  padding-left: max(8px, env(safe-area-inset-left));
-  padding-right: max(8px, env(safe-area-inset-right));
+  padding: 0 16px;
+  padding-left: max(16px, env(safe-area-inset-left));
+  padding-right: max(16px, env(safe-area-inset-right));
   padding-bottom: env(safe-area-inset-bottom);
   z-index: 1000;
+  gap: 8px;
 }
 
 [data-theme="dark"] .navbar {
   background-color: var(--bg-secondary);
   box-shadow: 0 -4px 15px rgba(0, 0, 0, 0.2);
+}
+
+.nav-add-button-left {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  font-size: 28px;
+  font-weight: 500;
+  
+  background: linear-gradient(135deg, var(--accent-secondary), var(--accent-primary));
+  color: white;
+  
+  border-radius: 16px;
+  border: none;
+  box-shadow: var(--shadow-lg);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+.nav-add-button-left:hover {
+  transform: scale(1.05);
+}
+
+.nav-items-main {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  flex-grow: 1;
 }
 
 .nav-item {
@@ -130,12 +362,12 @@ body {
   justify-content: center;
   gap: 4px;
   
-  font-size: var(--font-xs); /* Smaller label text */
+  font-size: var(--font-xs);
   color: var(--text-tertiary);
   text-decoration: none;
   border-radius: var(--radius-md);
   
-  width: 60px;
+  width: 56px;
   height: 60px;
   
   transition: all 0.2s ease;
@@ -148,12 +380,11 @@ body {
 }
 
 .nav-item-label {
-  display: block; /* Show labels on mobile */
+  display: block; 
   font-size: 10px; 
   line-height: 1.2;
 }
 
-/* Active Nav Item State */
 .nav-item.active {
   color: var(--accent-primary);
   background-color: var(--bg-tertiary);
@@ -163,110 +394,55 @@ body {
   background-color: var(--bg-primary);
 }
 
-/* Floating Action Button (FAB) style for Add Task */
-.nav-add-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 56px;
-  height: 56px;
-  font-size: 28px;
-  font-weight: 500;
-  
-  background: linear-gradient(135deg, var(--accent-secondary), var(--accent-primary));
-  color: white;
-  
-  border-radius: 50%;
-  border: none;
-  box-shadow: var(--shadow-lg);
-  cursor: pointer;
-  
-  /* Makes it "float" above the bar */
-  transform: translateY(-15px);
-  transition: all 0.2s ease;
-}
-
-.nav-add-button:hover {
-  background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
-  transform: translateY(-17px) scale(1.05);
-}
-
-/* ===== NEW: "MORE" MENU STYLES ===== */
-@keyframes slide-up-in {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
+/* ===== DESKTOP NAVBAR OVERRIDE ===== */
+@media (min-width: 768px) {
+  /* On desktop, hide the new mobile-first navbar */
+  .navbar {
+    display: none;
   }
-  to {
-    opacity: 1;
-    transform: translateY(0);
+
+  .sidebar-backdrop {
+    display: none;
+  }
+  .sidebar {
+    transform: translateX(0);
+    position: sticky; 
+    height: 100vh;
+    box-shadow: none;
+    border-right: 1px solid var(--border-light);
+    transition: none;
+  }
+  .sidebar-header {
+    padding-top: 16px;
+  }
+  .sidebar-close-button {
+    display: none;
+  }
+  .sidebar-footer {
+    padding-bottom: 16px;
+  }
+
+  /* Adjust main page content to make room for desktop sidebar */
+  body {
+    display: flex;
+  }
+  .page-container {
+    flex-grow: 1;
+    padding: 32px;
+    padding-bottom: 32px;
+    height: 100vh;
+    overflow-y: auto; /* Allow page content to scroll */
+    min-height: 100vh; /* Ensure it fills viewport */
   }
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-.more-menu-backdrop {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.3);
-  z-index: 1001;
-  animation: fadeIn 0.2s ease-out;
-}
-
-.more-menu {
-  position: fixed;
-  bottom: 100px; /* Position above the navbar */
-  right: max(24px, env(safe-area-inset-right)); /* Align with page padding */
-  
-  background-color: var(--bg-primary);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
-  border: 1px solid var(--border-light);
-  
-  width: 250px;
-  padding: 8px;
-  z-index: 1002;
-  
-  animation: slide-up-in 0.2s ease-out;
-}
-
-.more-menu-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px;
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  text-decoration: none;
-  color: var(--text-primary);
-  font-size: var(--font-sm);
-  font-weight: 500;
-}
-
-.more-menu-item:hover {
-  background-color: var(--bg-tertiary);
-}
-
-.more-menu-item-icon {
-  font-size: 20px;
-  width: 24px;
-  text-align: center;
-  color: var(--text-secondary);
-}
 
 /* ===== TYPOGRAPHY ===== */
 h1, h2, h3, h4, h5, h6 {
-  font-weight: 700; /* Bolder */
+  font-weight: 700; 
   line-height: 1.3;
   color: var(--text-primary);
 }
-
 h1 { font-size: var(--font-xxl); }
 h2 { font-size: var(--font-xl); }
 h3 { font-size: var(--font-lg); }
@@ -276,14 +452,12 @@ input, textarea, select, button {
   font-family: inherit;
   font-size: inherit;
 }
-
 button {
   cursor: pointer;
   border: none;
   background: none;
   transition: var(--transition);
 }
-
 button:disabled {
   cursor: not-allowed;
   opacity: 0.6;
@@ -297,13 +471,11 @@ button:disabled {
   height: 24px;
   min-width: 44px;
 }
-
 .toggle-switch input {
   opacity: 0;
   width: 0;
   height: 0;
 }
-
 .toggle-slider {
   position: absolute;
   cursor: pointer;
@@ -315,7 +487,6 @@ button:disabled {
   transition: var(--transition);
   border-radius: 24px;
 }
-
 .toggle-slider:before {
   position: absolute;
   content: "";
@@ -327,15 +498,12 @@ button:disabled {
   transition: var(--transition);
   border-radius: 50%;
 }
-
 input:checked + .toggle-slider {
   background-color: var(--accent-primary);
 }
-
 input:checked + .toggle-slider:before {
   transform: translateX(20px);
 }
-
 input:focus-visible + .toggle-slider {
   outline: 2px solid var(--accent-primary);
   outline-offset: 2px;
@@ -346,14 +514,23 @@ input:focus-visible + .toggle-slider {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
-
-.animate-fadeIn {
-  animation: fadeIn 0.2s ease-out;
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes slide-up-in {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-.animate-spin {
-  animation: spin 1s linear infinite;
-}
+.animate-fadeIn { animation: fadeIn 0.2s ease-out; }
+.animate-spin { animation: spin 1s linear infinite; }
 
 /* ===== MODAL & OVERLAY STYLES ===== */
 .modal-overlay {
@@ -370,129 +547,7 @@ input:focus-visible + .toggle-slider {
   animation: fadeIn 0.2s ease-out;
 }
 
-/* ===== RESPONSIVE OVERRIDES (TABLET/DESKTOP) ===== */
-@media (min-width: 768px) {
-  /* On desktop, revert to the "dock" style navbar */
-  .navbar {
-    bottom: 24px;
-    left: 50%;
-    right: auto;
-    transform: translateX(-50%);
-    
-    height: auto;
-    width: auto;
-    
-    border: 1px solid var(--border-light);
-    border-radius: 16px;
-    padding: 8px;
-    gap: 8px; 
-    padding-bottom: 8px; /* Reset safe area padding */
-  }
-
-  .nav-item {
-    flex-direction: row;
-    width: 48px;
-    height: 48px;
-  }
-  
-  .nav-item-label {
-    display: none; /* Hide labels on desktop */
-  }
-  
-  .nav-item-icon {
-    font-size: 24px; /* Reset to 24px for desktop */
-  }
-  
-  .nav-item.active {
-    background-color: var(--bg-tertiary);
-  }
-
-  .nav-add-button {
-    position: relative;
-    transform: translateY(0);
-    width: 48px;
-    height: 48px;
-    font-size: 24px;
-    border-radius: 12px;
-  }
-  
-  .nav-add-button:hover {
-    transform: translateY(0);
-  }
-
-  /* Reset page padding */
-  .page-container {
-    padding: 32px;
-    padding-bottom: 32px;
-  }
-
-  /* Reposition "More" menu for desktop */
-  .more-menu {
-    bottom: 90px;
-    right: auto;
-    left: 50%;
-    /* Aligns the menu relative to the centered desktop dock */
-    transform: translateX(calc( -100% + 150px) ); 
-  }
-}
-
-/* ===== MOBILE-SPECIFIC LAYOUTS ===== */
-@media (max-width: 768px) {
-  .dashboard-content { 
-    /* Use !important to override inline styles from component */
-    padding: 16px 8px !important; 
-    padding-bottom: 120px !important; /* Ensure navbar clearance */
-  }
-  
-  .dashboard-grid {
-    grid-template-columns: 1fr !important;
-    gap: 16px !important;
-  }
-  
-  .stat-grid {
-    grid-template-columns: repeat(2, 1fr) !important;
-    gap: 12px !important;
-  }
-
-  /* Prevent mobile zoom on form inputs */
-  input, select, textarea {
-    font-size: 16px !important;
-  }
-
-  /* Improve mobile touch targets */
-  button, a {
-    min-height: 44px;
-  }
-}
-
-/* --- NEW PLANNING PAGE STYLES --- */
-@media (min-width: 900px) {
-  .planning-layout {
-    display: grid;
-    grid-template-columns: 350px 1fr; /* Fixed calendar, flexible agenda */
-    gap: 24px;
-    align-items: flex-start;
-  }
-  
-  .view-toggler-mobile {
-    display: none !important; /* Hide mobile toggle on desktop */
-  }
-}
-
-/* --- MOBILE: Toggled layout --- */
-@media (max-width: 899px) {
-  .planning-layout {
-    display: block; /* Stack them */
-  }
-  
-  .view-toggler-mobile {
-    display: flex !important;
-  }
-}
-/* --- END PLANNING PAGE STYLES --- */
-
-
-/* --- NEW CHAT BUBBLE STYLES --- */
+/* ===== CHAT BUBBLE STYLES ===== */
 .message-bubble {
   padding: 12px 16px;
   border-radius: 20px;
@@ -503,91 +558,33 @@ input:focus-visible + .toggle-slider {
   display: flex;
   flex-direction: column;
 }
-
 .message-user {
   align-self: flex-end;
   background-color: var(--accent-primary);
   color: white;
-  border-bottom-right-radius: 4px; /* Gives it that "chat bubble" look */
+  border-bottom-right-radius: 4px;
 }
-
 .message-assistant {
   align-self: flex-start;
   background-color: var(--bg-tertiary);
   color: var(--text-primary);
   border: 1px solid var(--border-light);
-  border-bottom-left-radius: 4px; /* Gives it that "chat bubble" look */
+  border-bottom-left-radius: 4px;
 }
-
 [data-theme="dark"] .message-assistant {
   background-color: var(--bg-tertiary);
   color: var(--text-primary);
   border-color: var(--border-medium);
 }
-
 .message-timestamp {
   font-size: 10px;
   opacity: 0.7;
-  margin-top: 4px; /* FIXED: Reduced margin */
+  margin-top: 4px;
   text-align: right;
 }
-
 .message-assistant .message-timestamp {
   text-align: left;
 }
-/* --- END CHAT BUBBLE STYLES --- */
-
-
-/* ===== ACCESSIBILITY ===== */
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
-}
-
-/* Focus styles */
-button:focus-visible,
-a:focus-visible,
-input:focus-visible,
-select:focus-visible {
-  outline: 2px solid var(--accent-primary);
-  outline-offset: 2px;
-}
-
-/* ===== SCROLLBAR STYLES ===== */
-::-webkit-scrollbar {
-  width: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: var(--bg-tertiary);
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--border-medium);
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: var(--text-tertiary);
-}
-
-/* ===== SELECTION STYLES ===== */
-::selection {
-  background-color: var(--accent-primary);
-  color: white;
-}
-
-/* app/globals.css (add this at the end) */
-
-/* --- CHAT CLEAR CONFIRM MODAL --- */
-/* app/globals.css (add this at the end) */
 
 /* --- CHAT CLEAR CONFIRM MODAL --- */
 .chat-confirm-modal {
@@ -599,44 +596,23 @@ select:focus-visible {
   max-width: 400px;
   box-shadow: var(--shadow-lg);
   text-align: center;
-  animation: fadeIn 0.2s ease-out; /* Use existing animation */
-}
-
-/* Add a slide-up animation if it's not already in globals.css */
-@keyframes slide-up-in {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.chat-confirm-modal {
   animation: slide-up-in 0.2s ease-out;
 }
-
-
 .chat-confirm-title {
   font-size: var(--font-lg);
   font-weight: 600;
   color: var(--text-primary);
   margin-bottom: 12px;
 }
-
 .chat-confirm-text {
   font-size: var(--font-sm);
   color: var(--text-secondary);
   margin-bottom: 24px;
 }
-
 .chat-confirm-buttons {
   display: flex;
   gap: 12px;
 }
-
 .chat-confirm-button {
   flex: 1;
   padding: 12px;
@@ -647,13 +623,47 @@ select:focus-visible {
   cursor: pointer;
   min-height: 44px;
 }
-
 .chat-confirm-button-danger {
   background-color: var(--accent-danger);
   color: white;
 }
-
 .chat-confirm-button-cancel {
   background-color: var(--bg-tertiary);
   color: var(--text-primary);
+}
+
+/* ===== ACCESSIBILITY ===== */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+/* ===== SCROLLBAR STYLES ===== */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-medium);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-tertiary);
+}
+
+/* ===== SELECTION STYLES ===== */
+::selection {
+  background-color: var(--accent-primary);
+  color: white;
 }

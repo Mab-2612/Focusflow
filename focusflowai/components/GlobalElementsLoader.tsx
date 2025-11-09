@@ -1,3 +1,4 @@
+// components/GlobalElementsLoader.tsx
 "use client"
 
 import { useAuth } from '@/hooks/useAuth'
@@ -10,11 +11,15 @@ export default function GlobalElementsLoader() {
   useEffect(() => {
     // Wait for auth to load and user to be determined
     if (!loading) {
-      const timer = setTimeout(() => {
-        setElementsReady(true)
-      }, user ? 2000 : 0) // Show faster if no user (on login page)
-
-      return () => clearTimeout(timer)
+      // FIXED: Removed the artificial 2-second delay
+      // const timer = setTimeout(() => {
+      //   setElementsReady(true)
+      // }, user ? 2000 : 0)
+      
+      // return () => clearTimeout(timer)
+      
+      // Show elements immediately once auth is resolved
+      setElementsReady(true)
     }
   }, [user, loading])
 

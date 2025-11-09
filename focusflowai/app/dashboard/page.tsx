@@ -151,7 +151,7 @@ export default function DashboardPage() {
     borderRadius: '6px',
     cursor: 'pointer',
     fontSize: '16px',
-    opacity: 0.7,
+    opacity: 0.7, // Set default opacity
     transition: 'opacity 0.2s ease',
     flexShrink: 0,
     display: 'flex',
@@ -517,12 +517,6 @@ export default function DashboardPage() {
                       onClick={() => confirmDeleteTask(task.id)}
                       style={deleteButtonStyle}
                       title="Delete task"
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.opacity = '1';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.opacity = '0.7';
-                      }}
                     >
                       🗑️
                     </button>
@@ -556,12 +550,6 @@ export default function DashboardPage() {
                       onClick={() => confirmDeleteTask(task.id)}
                       style={deleteButtonStyle}
                       title="Delete task"
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.opacity = '1';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.opacity = '0.7';
-                      }}
                     >
                       🗑️
                     </button>
@@ -595,12 +583,6 @@ export default function DashboardPage() {
                       onClick={() => confirmDeleteTask(task.id)}
                       style={deleteButtonStyle}
                       title="Delete task"
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.opacity = '1';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.opacity = '0.7';
-                      }}
                     >
                       🗑️
                     </button>

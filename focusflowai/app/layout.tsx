@@ -1,51 +1,57 @@
 // app/layout.tsx
-import type { Metadata, Viewport } from 'next'
+"use client"
+
 import { ThemeProvider } from '@/components/ThemeContext'
 import { SoundProvider } from '@/contexts/SoundContext'
 import AppProvider from '@/components/AppProvider'
 import AuthGuard from '@/components/AuthGuard'
-import PageTransition from '@/components/PageTransition'
-import GlobalSoundControl from '@/components/GlobalSoundControl'
-// import GlobalVoiceAssistant from '@/components/GlobalVoiceAssistant'
-import GlobalThemeToggle from '@/components/GlobalThemeToggle'
+// GlobalSoundControl is no longer needed here
 import GlobalElementsLoader from '@/components/GlobalElementsLoader'
+
+// Import new components
+import { useState } from 'react'
+import MobileHeader from '@/components/MobileHeader'
+import Sidebar from '@/components/Sidebar'
+import GlobalStopButton from '@/components/GlobalStopButton' // Import new button
+
 import './globals.css'
-
-export const metadata: Metadata = {
-  title: 'FocusFlow - AI Productivity Assistant',
-  description: 'Your AI-powered productivity companion with voice control, task management, and focus tools',
-  icons: {
-    icon: '/favicon.ico',
-    shortcut: '/favicon.ico',
-    apple: '/favicon.ico',
-  },
-}
-
-// Add this viewport export
-export const viewport: Viewport = {
-  themeColor: '#ffffff',
-}
 
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  // State to manage sidebar visibility
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+
   return (
     <html lang="en">
-      {/* The <head> tag is now managed by Next.js, so we can remove the manual one */}
+      <head>
+        <title>FocusFlow - AI Productivity Assistant</title>
+        <meta name="description" content="Your AI-powered productivity companion with voice control, task management, and focus tools" />
+        <meta name="theme-color" content="#ffffff" />
+      </head>
       <body>
         <ThemeProvider>
           <SoundProvider>
             <AppProvider>
               <AuthGuard>
-                <PageTransition>
-                  <GlobalElementsLoader />
-                  <GlobalThemeToggle />
-                  {/* <GlobalVoiceAssistant /> */}
-                  <GlobalSoundControl />
-                  {children}
-                </PageTransition>
+                <GlobalElementsLoader />
+                
+                <MobileHeader onMenuClick={() => setIsSidebarOpen(true)} />
+                <Sidebar 
+                  isOpen={isSidebarOpen} 
+                  onClose={() => setIsSidebarOpen(false)} 
+                />
+                
+                {/* GlobalSoundControl is removed.
+                  GlobalThemeToggle is now inside the Sidebar.
+                */}
+                
+                {/* Add the new GlobalStopButton here */}
+                <GlobalStopButton />
+                
+                {children}
               </AuthGuard>
             </AppProvider>
           </SoundProvider>

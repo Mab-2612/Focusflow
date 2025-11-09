@@ -1,4 +1,4 @@
-//components/AddTaskModal.tsx
+// components/AddTaskModal.tsx
 "use client"
 
 import { useState } from 'react'
@@ -6,6 +6,7 @@ import { taskService } from '@/services/taskService'
 import { useAuth } from '@/hooks/useAuth'
 import AITaskBreakdown from './AITaskBreakdown'
 import TaskCategories from './TaskCategories'
+import { useTheme } from './ThemeContext' // Import useTheme
 
 interface AddTaskModalProps {
   isOpen: boolean
@@ -15,6 +16,7 @@ interface AddTaskModalProps {
 
 export default function AddTaskModal({ isOpen, onClose, onTaskAdded }: AddTaskModalProps) {
   const { user } = useAuth()
+  const { theme } = useTheme() // Get the current theme
   const [task, setTask] = useState('')
   const [priority, setPriority] = useState<'urgent' | 'important' | 'later'>('important')
   const [description, setDescription] = useState('')
@@ -38,8 +40,10 @@ export default function AddTaskModal({ isOpen, onClose, onTaskAdded }: AddTaskMo
     padding: '16px'
   }
 
+  // FIXED: Use theme variables
   const modalStyle = {
-    backgroundColor: '#ffffff',
+    backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff',
+    color: theme === 'dark' ? '#f3f4f6' : '#1f2937',
     borderRadius: '16px',
     padding: '24px',
     width: '100%',
@@ -58,7 +62,8 @@ export default function AddTaskModal({ isOpen, onClose, onTaskAdded }: AddTaskMo
   const titleStyle = {
     fontSize: '20px',
     fontWeight: '600',
-    margin: 0
+    margin: 0,
+    color: 'inherit' // Inherit from modalStyle
   }
 
   const closeButtonStyle = {
@@ -68,7 +73,8 @@ export default function AddTaskModal({ isOpen, onClose, onTaskAdded }: AddTaskMo
     backgroundColor: 'transparent',
     cursor: 'pointer',
     fontSize: '24px',
-    opacity: loading ? 0.5 : 1
+    opacity: loading ? 0.5 : 1,
+    color: theme === 'dark' ? '#9ca3af' : '#6b7280' // FIXED
   }
 
   const formStyle = {
@@ -81,16 +87,20 @@ export default function AddTaskModal({ isOpen, onClose, onTaskAdded }: AddTaskMo
     display: 'block',
     fontSize: '14px',
     fontWeight: '500',
-    marginBottom: '8px'
+    marginBottom: '8px',
+    color: 'inherit' // Inherit from modalStyle
   }
 
+  // FIXED: Use theme variables
   const inputStyle = {
     width: '100%',
     padding: '12px',
-    border: '1px solid #d1d5db',
+    border: `1px solid ${theme === 'dark' ? '#374151' : '#d1d5db'}`,
     borderRadius: '12px',
     fontSize: '16px',
-    opacity: loading ? 0.7 : 1
+    opacity: loading ? 0.7 : 1,
+    backgroundColor: theme === 'dark' ? '#111827' : '#ffffff',
+    color: theme === 'dark' ? '#f3f4f6' : '#1f2937'
   }
 
   const textareaStyle = {
@@ -131,7 +141,6 @@ export default function AddTaskModal({ isOpen, onClose, onTaskAdded }: AddTaskMo
       })
 
       if (result) {
-        // If we have generated subtasks, you could create them here too
         console.log('Generated subtasks available:', generatedSubtasks)
         
         setTask('')
@@ -191,7 +200,6 @@ export default function AddTaskModal({ isOpen, onClose, onTaskAdded }: AddTaskMo
             />
           </div>
 
-          {/* AI Task Breakdown Component */}
           {task.trim() && (
             <AITaskBreakdown 
               taskTitle={task}

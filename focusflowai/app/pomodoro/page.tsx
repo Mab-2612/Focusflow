@@ -5,14 +5,45 @@ import PomodoroTimer from '@/components/PomodoroTimer'
 import Navbar from '@/components/Navbar'
 import { useTheme } from '@/components/ThemeContext'
 import { useState, useEffect, useRef } from 'react'
+import { useAuth } from '@/hooks/useAuth'
+import { supabase } from '@/lib/supabase/client'
 
 export default function PomodoroPage() {
   const { theme } = useTheme()
+  const { user } = useAuth()
   const [showInstructions, setShowInstructions] = useState(false)
   const instructionsRef = useRef<HTMLDivElement>(null)
   const questionButtonRef = useRef<HTMLButtonElement>(null)
 
-  // Close instructions when clicking outside
+  const [workDuration, setWorkDuration] = useState(25)
+  const [breakDuration, setBreakDuration] = useState(5)
+  const [longBreakDuration, setLongBreakDuration] = useState(15)
+
+  useEffect(() => {
+    const loadUserPreferences = async () => {
+      if (!user) return
+      
+      try {
+        const { data, error } = await supabase
+          .from('user_preferences')
+          .select('preferences')
+          .eq('user_id', user.id)
+          .single()
+
+        if (data && !error && data.preferences) {
+          setWorkDuration(Number(data.preferences.work_duration) || 25)
+          setBreakDuration(Number(data.preferences.break_duration) || 5)
+          setLongBreakDuration(Number(data.preferences.long_break_duration) || 15)
+        }
+      } catch (error) {
+        console.error('Error loading preferences for Pomodoro:', error)
+      }
+    }
+
+    loadUserPreferences()
+  }, [user])
+
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -34,7 +65,6 @@ export default function PomodoroPage() {
     }
   }, [showInstructions])
 
-  // Calculate position for instructions popover
   const getInstructionsPosition = () => {
     if (!questionButtonRef.current) return { top: '50%', left: '50%' }
 
@@ -48,10 +78,9 @@ export default function PomodoroPage() {
 
   return (
     <div 
-      // 👇 USE NEW GLOBAL CLASS
       className="page-container"
       style={{
-        minHeight: '100vh',
+        // FIXED: Removed minHeight: '100vh'
         backgroundColor: theme === 'dark' ? '#111827' : '#f9fafb',
         display: 'flex',
         flexDirection: 'column',
@@ -61,7 +90,7 @@ export default function PomodoroPage() {
       }}
     >
       <h1 style={{
-        fontSize: 'var(--font-xl)', // Use fluid typography
+        fontSize: 'var(--font-xl)',
         marginBottom: '40px',
         color: theme === 'dark' ? '#f3f4f6' : '#1f2937',
         fontWeight: '700',
@@ -70,11 +99,9 @@ export default function PomodoroPage() {
         Pomodoro Timer
       </h1>
       
-      {/* Timer Container with Question Mark */}
       <div style={{ position: 'relative', display: 'inline-block' }}>
         <PomodoroTimer />
         
-        {/* Minimal Question Mark Button - INSIDE timer container */}
         <button
           ref={questionButtonRef}
           onClick={() => setShowInstructions(!showInstructions)}
@@ -103,7 +130,6 @@ export default function PomodoroPage() {
         </button>
       </div>
       
-      {/* Instructions Popover */}
       {showInstructions && (
         <div
           ref={instructionsRef}
@@ -126,7 +152,7 @@ export default function PomodoroPage() {
             marginBottom: '12px',
             fontSize: '16px'
           }}>
-            🍅 Pomodoro Technique
+            🍅 Your Pomodoro
           </h3>
           <div style={{ 
             color: theme === 'dark' ? '#9ca3af' : '#6b7280', 
@@ -135,13 +161,13 @@ export default function PomodoroPage() {
             marginBottom: '16px'
           }}>
             <p style={{ margin: '6px 0' }}>
-              <strong>25 minutes</strong> focused work
+              <strong>{workDuration} minutes</strong> focused work
             </p>
             <p style={{ margin: '6px 0' }}>
-              <strong>5 minutes</strong> short break
+              <strong>{breakDuration} minutes</strong> short break
             </p>
             <p style={{ margin: '6px 0' }}>
-              <strong>15 minutes</strong> long break after 4 sessions
+              <strong>{longBreakDuration} minutes</strong> long break after 4 sessions
             </p>
           </div>
           <button

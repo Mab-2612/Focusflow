@@ -110,7 +110,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
     const handleChange = () => {
-      // FIXED: Use data-theme attribute
+      // FIXED: Use data-theme attribute here as well
       document.documentElement.setAttribute('data-theme', getSystemTheme())
     }
 
