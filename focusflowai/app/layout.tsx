@@ -1,9 +1,12 @@
-import type { Metadata } from 'next'
+// app/layout.tsx
+import type { Metadata, Viewport } from 'next'
 import { ThemeProvider } from '@/components/ThemeContext'
 import { SoundProvider } from '@/contexts/SoundContext'
 import AppProvider from '@/components/AppProvider'
-// import AuthGuard from '@/components/AuthGuard' // COMMENT OUT
+import AuthGuard from '@/components/AuthGuard'
 import PageTransition from '@/components/PageTransition'
+import GlobalSoundControl from '@/components/GlobalSoundControl'
+// import GlobalVoiceAssistant from '@/components/GlobalVoiceAssistant'
 import GlobalThemeToggle from '@/components/GlobalThemeToggle'
 import GlobalElementsLoader from '@/components/GlobalElementsLoader'
 import './globals.css'
@@ -13,6 +16,11 @@ export const metadata: Metadata = {
   description: 'Your AI-powered productivity companion with voice control, task management, and focus tools',
 }
 
+// Add this viewport export
+export const viewport: Viewport = {
+  themeColor: '#ffffff',
+}
+
 export default function RootLayout({
   children,
 }: {
@@ -20,21 +28,20 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <head>
-        <meta name="theme-color" content="#ffffff" />
-      </head>
+      {/* The <head> tag is now managed by Next.js, so we can remove the manual one */}
       <body>
         <ThemeProvider>
           <SoundProvider>
             <AppProvider>
-              {/* AUTHGUARD COMMENTED OUT - NO REDIRECT LOOPS */}
-              {/* <AuthGuard> */}
+              <AuthGuard>
                 <PageTransition>
                   <GlobalElementsLoader />
                   <GlobalThemeToggle />
+                  {/* <GlobalVoiceAssistant /> */}
+                  <GlobalSoundControl />
                   {children}
                 </PageTransition>
-              {/* </AuthGuard> */}
+              </AuthGuard>
             </AppProvider>
           </SoundProvider>
         </ThemeProvider>
