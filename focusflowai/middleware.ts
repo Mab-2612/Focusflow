@@ -1,11 +1,10 @@
 import { createServerClient } from '@supabase/ssr'
-import { NextResponse } from 'next/server'
-import type { NextRequest } from 'next/server'
+import { NextResponse, type NextRequest } from 'next/server'
 
-export async function middleware(request: NextRequest) {
+export async function middleware(req: NextRequest) {
   let response = NextResponse.next({
     request: {
-      headers: request.headers,
+      headers: req.headers,
     },
   })
 
@@ -15,17 +14,17 @@ export async function middleware(request: NextRequest) {
     {
       cookies: {
         get(name: string) {
-          return request.cookies.get(name)?.value
+          return req.cookies.get(name)?.value
         },
         set(name: string, value: string, options: any) {
-          request.cookies.set({
+          req.cookies.set({
             name,
             value,
             ...options,
           })
           response = NextResponse.next({
             request: {
-              headers: request.headers,
+              headers: req.headers,
             },
           })
           response.cookies.set({
@@ -35,14 +34,14 @@ export async function middleware(request: NextRequest) {
           })
         },
         remove(name: string, options: any) {
-          request.cookies.set({
+          req.cookies.set({
             name,
             value: '',
             ...options,
           })
           response = NextResponse.next({
             request: {
-              headers: request.headers,
+              headers: req.headers,
             },
           })
           response.cookies.set({
@@ -55,18 +54,13 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-
-  // Protect dashboard routes
-  if (request.nextUrl.pathname.startsWith('/dashboard') && !session) {
-    return NextResponse.redirect(new URL('/', request.url))
-  }
+  await supabase.auth.getUser()
 
   return response
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*'],
+  matcher: [
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+  ],
 }
