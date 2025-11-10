@@ -307,8 +307,8 @@ export default function AnalyticsPage() {
               </div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                {/* FIXED: Adjusted margins to spread chart */}
-                <BarChart data={weeklyTrends} margin={{ top: 5, right: 0, left: -25, bottom: 5 }}>
+                {/* FIXED: Adjusted margins for better label spacing */}
+                <BarChart data={weeklyTrends} margin={{ top: 5, right: 10, left: -25, bottom: 20 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke={theme === 'dark' ? '#374151' : '#e5e7eb'} />
                   <XAxis dataKey="day" stroke={theme === 'dark' ? '#9ca3af' : '#6b7280'} interval={0} />
                   

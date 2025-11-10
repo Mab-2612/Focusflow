@@ -386,8 +386,8 @@ export default function DashboardPage() {
               className="stat-grid"
               style={{
                 display: 'grid',
-                // FIXED: Changed 150px to 100px
-                gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))',
+                // FIXED: Changed 100px to 90px
+                gridTemplateColumns: 'repeat(auto-fit, minmax(90px, 1fr))',
                 gap: '16px',
                 marginTop: '20px',
                 padding: '16px',
@@ -518,6 +518,9 @@ export default function DashboardPage() {
                 Urgent ({tasks.urgent.length})
               </h3>
               <div style={taskListStyle}>
+                {tasks.urgent.length === 0 && (
+                  <p style={emptyStateStyle}>No urgent tasks 🎉</p>
+                )}
                 {tasks.urgent.map(task => (
                   <div key={task.id} style={taskItemStyle}>
                     <input 
@@ -538,9 +541,6 @@ export default function DashboardPage() {
                     </button>
                   </div>
                 ))}
-                {tasks.urgent.length === 0 && (
-                  <p style={emptyStateStyle}>No urgent tasks 🎉</p>
-                )}
               </div>
             </div>
 
@@ -551,6 +551,9 @@ export default function DashboardPage() {
                 Important ({tasks.important.length})
               </h3>
               <div style={taskListStyle}>
+                {tasks.important.length === 0 && (
+                  <p style={emptyStateStyle}>No important tasks</p>
+                )}
                 {tasks.important.map(task => (
                   <div key={task.id} style={taskItemStyle}>
                     <input 
@@ -571,9 +574,6 @@ export default function DashboardPage() {
                     </button>
                   </div>
                 ))}
-                {tasks.important.length === 0 && (
-                  <p style={emptyStateStyle}>No important tasks</p>
-                )}
               </div>
             </div>
 
@@ -584,6 +584,9 @@ export default function DashboardPage() {
                 Later ({tasks.later.length})
               </h3>
               <div style={taskListStyle}>
+                {tasks.later.length === 0 && (
+                  <p style={emptyStateStyle}>No tasks for later</p>
+                )}
                 {tasks.later.map(task => (
                   <div key={task.id} style={taskItemStyle}>
                     <input 
@@ -604,9 +607,6 @@ export default function DashboardPage() {
                     </button>
                   </div>
                 ))}
-                {tasks.later.length === 0 && (
-                  <p style={emptyStateStyle}>No tasks for later</p>
-                )}
               </div>
             </div>
           </div>
