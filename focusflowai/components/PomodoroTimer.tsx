@@ -22,17 +22,20 @@ export default function PomodoroTimer({ onTimerComplete, compact = false }: Pomo
   const { addFocusSession, updateDailyStats } = useAnalyticsStore()
   
   // Timer settings (in seconds)
-  const [WORK_TIME, setWorkTime] = useState(25 * 60)
-  const [BREAK_TIME, setBreakTime] = useState(5 * 60)
-  const [LONG_BREAK_TIME, setLongBreakTime] = useState(15 * 60)
+  const [WORK_TIME, setWorkTime] = useState<number | null>(null)
+  const [BREAK_TIME, setBreakTime] = useState<number | null>(null)
+  const [LONG_BREAK_TIME, setLongBreakTime] = useState<number | null>(null)
   const SESSIONS_BEFORE_LONG_BREAK = 4
 
-  const [timeLeft, setTimeLeft] = useState<number>(25 * 60)
+  const [timeLeft, setTimeLeft] = useState<number | null>(null)
   const [isActive, setIsActive] = useState<boolean>(false)
   const [mode, setMode] = useState<TimerMode>('work')
   const [sessionsCompleted, setSessionsCompleted] = useState<number>(0)
   const [totalSessions, setTotalSessions] = useState<number>(0)
-  const [isLoading, setIsLoading] = useState(true)
+  
+  // Preferences state
+  const [soundEffectsEnabled, setSoundEffectsEnabled] = useState(true)
+  const [autoBreakEnabled, setAutoBreakEnabled] = useState(true)
 
   const isValidUUID = (uuid: string): boolean => {
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -40,26 +43,27 @@ export default function PomodoroTimer({ onTimerComplete, compact = false }: Pomo
   }
 
   const setDefaultTimes = () => {
-    setWorkTime(25 * 60);
+    const defaultWork = 25 * 60;
+    setWorkTime(defaultWork);
     setBreakTime(5 * 60);
     setLongBreakTime(15 * 60);
-    setTimeLeft(25 * 60);
+    setTimeLeft(defaultWork);
+    setSoundEffectsEnabled(true);
+    setAutoBreakEnabled(true);
   }
 
   // Load user preferences
   useEffect(() => {
     const loadUserPreferences = async () => {
       if (!user) {
-        setIsLoading(false)
+        setDefaultTimes(); // Set defaults if no user
         return
       }
       
       try {
-        // Validate user ID format
         if (!isValidUUID(user.id)) {
           console.log('Invalid user ID format, using default times');
           setDefaultTimes();
-          setIsLoading(false);
           return;
         }
 
@@ -69,45 +73,35 @@ export default function PomodoroTimer({ onTimerComplete, compact = false }: Pomo
           .eq('user_id', user.id)
           .single()
 
-        if (error) {
-          // Handle specific error cases
-          if (error.code === 'PGRST116') { // No rows returned
-            console.log('No preferences found, using defaults');
-            setDefaultTimes();
-          } else {
-            console.error('Error loading preferences:', error.message || error);
-            setDefaultTimes();
-          }
-        } else if (data?.preferences) {
-          const preferences = data.preferences;
-          const workDuration = parseInt(preferences.work_duration) || 25;
-          const breakDuration = parseInt(preferences.break_duration) || 5;
-          const longBreakDuration = parseInt(preferences.long_break_duration) || 15;
-          
-          setWorkTime(workDuration * 60);
-          setBreakTime(breakDuration * 60);
-          setLongBreakTime(longBreakDuration * 60);
-          setTimeLeft(workDuration * 60);
-        } else {
+        if (error || !data?.preferences) {
+          console.log('No preferences found or error, using defaults');
           setDefaultTimes();
+        } else {
+          const preferences = data.preferences;
+          const workDuration = (parseInt(preferences.work_duration) || 25) * 60;
+          
+          setWorkTime(workDuration);
+          setBreakTime((parseInt(preferences.break_duration) || 5) * 60);
+          setLongBreakTime((parseInt(preferences.long_break_duration) || 15) * 60);
+          setTimeLeft(workDuration); // Set time left *after* work time is set
+          
+          setSoundEffectsEnabled(preferences.sound_effects ?? true);
+          setAutoBreakEnabled(preferences.auto_break_enabled ?? true);
         }
       } catch (error) {
         console.error('Unexpected error loading preferences:', error);
         setDefaultTimes();
-      } finally {
-        setIsLoading(false);
       }
     }
 
     loadUserPreferences()
   }, [user])
 
-  // Track focus session with proper analytics
+  // Track focus session
   const trackFocusSession = async (sessionType: string, duration: number) => {
     if (!user) return
     
     try {
-      // Get completed tasks in the last 30 minutes
       const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString()
       const { data: tasks } = await supabase
         .from('tasks')
@@ -118,7 +112,6 @@ export default function PomodoroTimer({ onTimerComplete, compact = false }: Pomo
       
       const completedTasks = tasks ? tasks.length : 0
       
-      // Record the focus session in Supabase
       const { data: session } = await supabase
         .from('focus_sessions')
         .insert([{
@@ -131,7 +124,6 @@ export default function PomodoroTimer({ onTimerComplete, compact = false }: Pomo
         .single()
 
       if (session) {
-        // Update analytics store
         const today = new Date().toISOString().split('T')[0]
         const durationMinutes = Math.round(duration / 60)
         
@@ -144,17 +136,18 @@ export default function PomodoroTimer({ onTimerComplete, compact = false }: Pomo
   }
 
   // Format time for display (MM:SS)
-  const formatTime = (seconds: number): string => {
-    if (isNaN(seconds)) return '25:00'
+  const formatTime = (seconds: number | null): string => {
+    if (seconds === null) return '00:00'; // Show 00:00 while loading
+    if (isNaN(seconds)) return '25:00';
     const mins = Math.floor(seconds / 60)
     const secs = seconds % 60
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
   }
 
   // Switch to next mode
-  const switchMode = useCallback((nextMode: TimerMode) => {
+  const switchMode = useCallback((nextMode: TimerMode, autoStart: boolean = false) => {
     setMode(nextMode)
-    setIsActive(false)
+    setIsActive(autoStart)
     
     switch (nextMode) {
       case 'work':
@@ -176,40 +169,40 @@ export default function PomodoroTimer({ onTimerComplete, compact = false }: Pomo
   // Handle timer completion
   useEffect(() => {
     if (timeLeft === 0 && isActive) {
-      playStopTone()
+      if (soundEffectsEnabled) playStopTone();
       setIsActive(false)
       
-      // Track the completed session
       const sessionDuration = mode === 'work' ? WORK_TIME : 
                              mode === 'break' ? BREAK_TIME : LONG_BREAK_TIME
-      trackFocusSession(mode, sessionDuration)
+      
+      if (mode === 'work' && sessionDuration) {
+         trackFocusSession(mode, sessionDuration)
+      }
       
       if (mode === 'work') {
         const newSessionsCompleted = sessionsCompleted + 1
         setSessionsCompleted(newSessionsCompleted)
         setTotalSessions(prev => prev + 1)
         
-        // Every 4 work sessions, take a long break
         if (newSessionsCompleted >= SESSIONS_BEFORE_LONG_BREAK) {
-          switchMode('longBreak')
+          switchMode('longBreak', autoBreakEnabled)
           setSessionsCompleted(0)
         } else {
-          switchMode('break')
+          switchMode('break', autoBreakEnabled)
         }
       } else {
-        // After break, go back to work
-        switchMode('work')
+        switchMode('work', true)
       }
     }
-  }, [timeLeft, isActive, mode, sessionsCompleted, switchMode, playStopTone, WORK_TIME, BREAK_TIME, LONG_BREAK_TIME])
+  }, [timeLeft, isActive, mode, sessionsCompleted, switchMode, playStopTone, WORK_TIME, BREAK_TIME, LONG_BREAK_TIME, soundEffectsEnabled, autoBreakEnabled])
 
   // Timer countdown logic
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null
     
-    if (isActive && timeLeft > 0) {
+    if (isActive && timeLeft !== null && timeLeft > 0) {
       interval = setInterval(() => {
-        setTimeLeft(prevTime => prevTime - 1)
+        setTimeLeft(prevTime => (prevTime ? prevTime - 1 : 0))
       }, 1000)
     }
     
@@ -220,19 +213,19 @@ export default function PomodoroTimer({ onTimerComplete, compact = false }: Pomo
 
   // Start/pause timer
   const toggleTimer = () => {
-    if (!isActive) {
+    if (!isActive && soundEffectsEnabled) {
       playStartTone()
     }
     setIsActive(!isActive)
   }
 
-  // Reset timer to current mode's default time
+  // Reset timer
   const resetTimer = () => {
     setIsActive(false)
-    switchMode(mode)
+    switchMode(mode, false)
   }
 
-  // Skip current session
+  // Skip session
   const skipSession = () => {
     if (mode === 'work') {
       const newSessionsCompleted = sessionsCompleted + 1
@@ -240,20 +233,23 @@ export default function PomodoroTimer({ onTimerComplete, compact = false }: Pomo
       setTotalSessions(prev => prev + 1)
       
       if (newSessionsCompleted >= SESSIONS_BEFORE_LONG_BREAK) {
-        switchMode('longBreak')
+        switchMode('longBreak', autoBreakEnabled)
         setSessionsCompleted(0)
       } else {
-        switchMode('break')
+        switchMode('break', autoBreakEnabled)
       }
     } else {
-      switchMode('work')
+      switchMode('work', true)
     }
   }
 
-  // Calculate progress percentage for circular progress
+  // Calculate progress percentage
   const getProgressPercentage = (): number => {
+    if (timeLeft === null || WORK_TIME === null || BREAK_TIME === null || LONG_BREAK_TIME === null) return 0;
+    
     const totalTime = mode === 'work' ? WORK_TIME : 
                      mode === 'break' ? BREAK_TIME : LONG_BREAK_TIME
+    if (totalTime === 0) return 0;
     return ((totalTime - timeLeft) / totalTime) * 100
   }
 
@@ -283,20 +279,26 @@ export default function PomodoroTimer({ onTimerComplete, compact = false }: Pomo
 
   const colors = getModeColors()
 
-  if (isLoading) {
+  if (timeLeft === null || WORK_TIME === null) {
     return (
       <div style={{
         backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff',
-        borderRadius: '12px',
-        padding: '16px',
+        borderRadius: '20px',
+        padding: '32px',
         textAlign: 'center',
+        boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1)',
+        maxWidth: '400px',
+        minHeight: '480px', // Match the height of the full component
+        margin: '0 auto',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
         color: theme === 'dark' ? '#9ca3af' : '#6b7280'
       }}>
         Loading timer...
       </div>
     )
   }
-
 
   if (compact) {
     return (
@@ -374,7 +376,8 @@ export default function PomodoroTimer({ onTimerComplete, compact = false }: Pomo
       boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1)',
       border: `3px solid ${colors.primary}20`,
       maxWidth: '400px',
-      margin: '0 auto'
+      margin: '0 auto',
+      minHeight: '480px', // Give it a fixed height
     }}>
       {/* Progress Circle */}
       <div style={{
@@ -493,7 +496,7 @@ export default function PomodoroTimer({ onTimerComplete, compact = false }: Pomo
         {(['work', 'break', 'longBreak'] as TimerMode[]).map((timerMode) => (
           <button
             key={timerMode}
-            onClick={() => switchMode(timerMode)}
+            onClick={() => switchMode(timerMode, false)} // Don't auto-start on manual switch
             style={{
               padding: '8px 12px',
               backgroundColor: mode === timerMode ? colors.primary : 'transparent',

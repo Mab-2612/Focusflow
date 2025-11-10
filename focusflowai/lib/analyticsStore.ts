@@ -23,25 +23,24 @@ interface AnalyticsState {
   weeklyTrends: any[]
   productivityScore: number
   isLoading: boolean
+  daily_focus_goal: number // FIXED: Added user goal
   
   // Actions
   addFocusSession: (session: FocusSession) => void
   updateDailyStats: (date: string, focusTime: number, tasksCompleted: number) => void
-  calculateProductivityScore: () => number
+  calculateProductivityScore: () => void
   getWeeklyTrends: () => any[]
   clearAnalytics: () => void
   loadUserAnalytics: (userId: string) => Promise<void>
   syncWithDatabase: (userId: string) => Promise<void>
 }
 
-// Helper functions
+// Helper functions (calculateDailyProductivity remains, calculateWeeklyTrends updated)
 const calculateDailyProductivity = (focusTime: number, tasksCompleted: number): number => {
   if (focusTime === 0) return 0
-  
   const focusHours = focusTime / 60
   const timeEfficiency = Math.min(1, focusHours / 8) * 0.6
   const taskEfficiency = Math.min(1, tasksCompleted / 10) * 0.4
-  
   return Math.round((timeEfficiency + taskEfficiency) * 100)
 }
 
@@ -56,6 +55,7 @@ const calculateWeeklyTrends = (dailyStats: { [date: string]: DailyStats }) => {
     const stats = dailyStats[date] || { focusTime: 0, tasksCompleted: 0 }
     return {
       date,
+      day: new Date(date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short' }),
       focusTime: stats.focusTime,
       tasksCompleted: stats.tasksCompleted,
       productivity: calculateDailyProductivity(stats.focusTime, stats.tasksCompleted)
@@ -71,6 +71,7 @@ export const useAnalyticsStore = create<AnalyticsState>()(
       weeklyTrends: [],
       productivityScore: 0,
       isLoading: false,
+      daily_focus_goal: 1, // Default 1 hour per day
 
       addFocusSession: (session) => {
         set((state) => ({
@@ -96,39 +97,25 @@ export const useAnalyticsStore = create<AnalyticsState>()(
       },
 
       updateAnalytics: () => {
-        const { dailyStats, focusSessions } = get()
-        
+        const { dailyStats, daily_focus_goal } = get()
         const weeklyTrends = calculateWeeklyTrends(dailyStats)
-        const productivityScore = get().calculateProductivityScore()
+        
+        // Calculate new score
+        const activeDays = weeklyTrends.filter(day => day.focusTime > 0).length
+        const totalWeekFocus = weeklyTrends.reduce((sum, day) => sum + day.focusTime, 0)
+        
+        const WEEKLY_FOCUS_GOAL_MINUTES = (daily_focus_goal || 1) * 60 * 7 // Use user's goal
+
+        const consistency = (activeDays / 7) * 100
+        const goalMet = (Math.min(totalWeekFocus, WEEKLY_FOCUS_GOAL_MINUTES) / WEEKLY_FOCUS_GOAL_MINUTES) * 100
+        
+        const productivityScore = Math.round((consistency * 0.5) + (goalMet * 0.5))
         
         set({ weeklyTrends, productivityScore })
       },
 
       calculateProductivityScore: () => {
-        const { dailyStats, focusSessions } = get()
-        
-        if (focusSessions.length === 0) return 0
-        
-        const last7Days = Array.from({ length: 7 }, (_, i) => {
-          const date = new Date()
-          date.setDate(date.getDate() - i)
-          return date.toISOString().split('T')[0]
-        })
-
-        const activeDays = last7Days.filter(date => 
-          dailyStats[date]?.focusTime > 0
-        ).length
-
-        const consistency = (activeDays / 7) * 40
-
-        const totalProductivity = last7Days.reduce((sum, date) => {
-          const stats = dailyStats[date] || { focusTime: 0, tasksCompleted: 0 }
-          return sum + calculateDailyProductivity(stats.focusTime, stats.tasksCompleted)
-        }, 0)
-
-        const efficiency = (totalProductivity / 7) * 0.6
-
-        return Math.round(consistency + efficiency)
+        get().updateAnalytics()
       },
 
       getWeeklyTrends: () => {
@@ -147,17 +134,32 @@ export const useAnalyticsStore = create<AnalyticsState>()(
       loadUserAnalytics: async (userId: string) => {
         set({ isLoading: true })
         try {
-          // Load focus sessions
-          const { data: sessions, error } = await supabase
-            .from('focus_sessions')
-            .select('*')
-            .eq('user_id', userId)
-            .order('created_at', { ascending: false })
+          // FIXED: Fetch preferences *at the same time* as sessions
+          const [sessionsResult, prefsResult] = await Promise.all([
+            supabase
+              .from('focus_sessions')
+              .select('*')
+              .eq('user_id', userId)
+              .order('created_at', { ascending: false }),
+            supabase
+              .from('user_preferences')
+              .select('preferences')
+              .eq('user_id', userId)
+              .single()
+          ])
+
+          const { data: sessions, error } = sessionsResult;
+          
+          // Set goal from preferences
+          if (prefsResult.data && prefsResult.data.preferences) {
+            set({ daily_focus_goal: Number(prefsResult.data.preferences.daily_focus_goal) || 1 })
+          } else {
+            set({ daily_focus_goal: 1 }) // Fallback to default
+          }
 
           if (sessions && !error) {
             set({ focusSessions: sessions })
             
-            // Calculate daily stats from sessions
             const dailyStats: { [date: string]: DailyStats } = {}
             
             sessions.forEach(session => {
@@ -173,7 +175,7 @@ export const useAnalyticsStore = create<AnalyticsState>()(
             })
             
             set({ dailyStats })
-            get().updateAnalytics()
+            get().updateAnalytics() // Calculate everything after loading
           }
         } catch (error) {
           console.error('Error loading analytics:', error)
@@ -183,7 +185,6 @@ export const useAnalyticsStore = create<AnalyticsState>()(
       },
 
       syncWithDatabase: async (userId: string) => {
-        // This will sync local analytics with database
         await get().loadUserAnalytics(userId)
       }
     }),
@@ -193,7 +194,8 @@ export const useAnalyticsStore = create<AnalyticsState>()(
         focusSessions: state.focusSessions,
         dailyStats: state.dailyStats,
         weeklyTrends: state.weeklyTrends,
-        productivityScore: state.productivityScore
+        productivityScore: state.productivityScore,
+        daily_focus_goal: state.daily_focus_goal // Save goal locally
       })
     }
   )

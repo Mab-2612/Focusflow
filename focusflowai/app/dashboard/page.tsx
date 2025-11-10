@@ -1,37 +1,52 @@
 // app/dashboard/page.tsx
 "use client"
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useTheme } from '@/components/ThemeContext'
 import Navbar from '@/components/Navbar'
 import { taskService, Task } from '@/services/taskService'
 import { useAuth } from '@/hooks/useAuth'
-import AdvancedAnalyticsDashboard from '@/components/AdvancedAnalyticsDashboard'
-import LiveProductivityMetrics from '@/components/LiveProductivityMetrics'
-import SimpleAnalyticsDashboard from '@/components/SimpleAnalyticsDashboard'
 import { useAnalyticsStore } from '@/lib/analyticsStore'
 import { supabase } from '@/lib/supabase/client'
 
-// ADD THIS FUNCTION AT THE TOP LEVEL OF THE FILE (outside the component)
 const getUserDisplayName = (user: any) => {
   if (!user) return 'Guest';
   
-  // Try to get name from user_metadata
   const userName = user.user_metadata?.full_name || 
                    user.user_metadata?.name || 
                    user.user_metadata?.user_name;
   
   if (userName) return userName;
   
-  // Fallback to email username
   const emailName = user.email?.split('@')[0];
   return emailName || 'User';
 };
 
+// Helper to format time
+const formatTime = (minutes: number): string => {
+  if (isNaN(minutes)) return '0m'
+  const hours = Math.floor(minutes / 60)
+  const mins = minutes % 60
+  return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`
+}
+
+// FIXED: Added UUID validation function
+const isValidUUID = (uuid: string): boolean => {
+  if (!uuid) return false;
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(uuid);
+}
+
 export default function DashboardPage() {
   const { theme } = useTheme()
   const { user } = useAuth()
-  const { productivityScore } = useAnalyticsStore()
+  
+  const { 
+    productivityScore, 
+    daily_focus_goal, 
+    weeklyTrends 
+  } = useAnalyticsStore()
+
   const [tasks, setTasks] = useState<{
     urgent: Task[]
     important: Task[]
@@ -40,25 +55,33 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [taskToDelete, setTaskToDelete] = useState<string | null>(null)
-  const [showAnalytics, setShowAnalytics] = useState(false)
+  const [showTaskSections, setShowTaskSections] = useState(true)
+  
   const [userStats, setUserStats] = useState({
     totalFocusTime: 0,
     totalSessions: 0,
     tasksCompleted: 0
   })
 
-  // Theme-aware styles (Component-specific styles remain)
+  const { totalWeekFocus, weeklyGoalInMinutes, goalPercentage } = useMemo(() => {
+    const totalWeekFocus = weeklyTrends.reduce((sum, day) => sum + day.focusTime, 0);
+    const weeklyGoalInMinutes = (daily_focus_goal || 1) * 60 * 7;
+    const percentage = weeklyGoalInMinutes > 0 
+      ? Math.min(100, (totalWeekFocus / weeklyGoalInMinutes) * 100)
+      : 0;
+    return { totalWeekFocus, weeklyGoalInMinutes, goalPercentage: percentage };
+  }, [weeklyTrends, daily_focus_goal]);
+
+  // --- Styles ---
   const pageStyle = {
     minHeight: '100vh',
     backgroundColor: theme === 'dark' ? '#111827' : '#f9fafb',
     transition: 'background-color 0.3s ease'
   }
-
   const loadingContainerStyle = {
     textAlign: 'center' as const,
     padding: '100px 16px'
   }
-
   const focusCardStyle = {
     backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff',
     borderRadius: '16px',
@@ -68,27 +91,23 @@ export default function DashboardPage() {
     color: theme === 'dark' ? '#f3f4f6' : '#1f2937',
     border: theme === 'dark' ? '1px solid #374151' : '1px solid #e5e7eb'
   }
-
   const focusTitleStyle = {
-    fontSize: 'var(--font-lg)', // Use fluid typography
+    fontSize: 'var(--font-lg)',
     fontWeight: '700',
     marginBottom: '16px',
     color: theme === 'dark' ? '#f3f4f6' : '#1f2937'
   }
-
   const focusTextStyle = {
     margin: 0,
     lineHeight: '1.6',
     color: theme === 'dark' ? '#d1d5db' : '#4b5563',
-    fontSize: 'var(--font-sm)' // Use fluid typography
+    fontSize: 'var(--font-sm)'
   }
-
   const tasksGridStyle = {
     display: 'grid',
     gap: '24px',
     gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))'
   }
-
   const taskCategoryStyle = {
     backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff',
     borderRadius: '16px',
@@ -96,7 +115,6 @@ export default function DashboardPage() {
     padding: '24px',
     border: theme === 'dark' ? '1px solid #374151' : '1px solid #e5e7eb'
   }
-
   const categoryTitleStyle = (color: string) => ({
     fontWeight: '600',
     fontSize: '18px',
@@ -106,13 +124,11 @@ export default function DashboardPage() {
     alignItems: 'center',
     gap: '8px'
   })
-
   const taskListStyle = {
     display: 'flex',
     flexDirection: 'column' as const,
     gap: '12px'
   }
-
   const taskItemStyle = {
     display: 'flex',
     alignItems: 'center',
@@ -123,7 +139,6 @@ export default function DashboardPage() {
     transition: 'all 0.2s ease',
     gap: '12px'
   }
-
   const checkboxStyle = {
     height: '20px',
     width: '20px',
@@ -134,7 +149,6 @@ export default function DashboardPage() {
     border: theme === 'dark' ? '1px solid #4b5563' : '1px solid #d1d5db',
     flexShrink: 0
   }
-
   const taskTextStyle = (completed: boolean) => ({
     textDecoration: completed ? 'line-through' : 'none',
     color: completed ? '#9ca3af' : (theme === 'dark' ? '#f3f4f6' : '#374151'),
@@ -142,7 +156,6 @@ export default function DashboardPage() {
     fontSize: '14px',
     margin: '0'
   })
-
   const deleteButtonStyle = {
     padding: '6px',
     backgroundColor: 'transparent',
@@ -151,14 +164,13 @@ export default function DashboardPage() {
     borderRadius: '6px',
     cursor: 'pointer',
     fontSize: '16px',
-    opacity: 0.7, // Set default opacity
+    opacity: 0.7,
     transition: 'opacity 0.2s ease',
     flexShrink: 0,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center'
   }
-
   const emptyStateStyle = {
     color: theme === 'dark' ? '#9ca3af' : '#6b7280',
     margin: 0,
@@ -170,6 +182,12 @@ export default function DashboardPage() {
   // Load user statistics
   const loadUserStats = useCallback(async () => {
     if (!user) return
+    
+    // FIXED: Add UUID guard
+    if (!isValidUUID(user.id)) {
+      console.error("Dashboard: Invalid user ID, aborting stats load.");
+      return;
+    }
 
     try {
       // Get total focus time and sessions
@@ -183,7 +201,7 @@ export default function DashboardPage() {
         const tasksCompleted = sessionsData.reduce((sum, session) => sum + session.completed_tasks, 0)
         
         setUserStats({
-          totalFocusTime: Math.round(totalFocusTime / 60), // Convert to minutes
+          totalFocusTime: Math.round(totalFocusTime / 60), 
           totalSessions: sessionsData.length,
           tasksCompleted
         })
@@ -207,13 +225,20 @@ export default function DashboardPage() {
     }
   }, [user])
 
-  // Load tasks function
+  // Load tasks
   const loadTasks = useCallback(async () => {
     if (!user) {
       setLoading(false)
       return
     }
     
+    // FIXED: Add UUID guard
+    if (!isValidUUID(user.id)) {
+      console.error("Dashboard: Invalid user ID, aborting task load.");
+      setLoading(false);
+      return;
+    }
+
     try {
       setRefreshing(true)
       const [urgentResult, importantResult, laterResult] = await Promise.all([
@@ -228,7 +253,6 @@ export default function DashboardPage() {
         later: laterResult.data || [] 
       })
 
-      // Load user statistics
       await loadUserStats()
 
     } catch (error) {
@@ -239,40 +263,34 @@ export default function DashboardPage() {
     }
   }, [user, loadUserStats])
 
-  // Load tasks on mount and when user changes
   useEffect(() => {
     loadTasks()
   }, [loadTasks])
 
-  // Toggle task completion
+  // --- Task Handlers ---
   const toggleTaskCompletion = async (taskId: string, completed: boolean) => {
     try {
-      // Optimistic update
       setTasks(prev => ({
         urgent: prev.urgent.map(t => t.id === taskId ? { ...t, completed: !completed } : t),
         important: prev.important.map(t => t.id === taskId ? { ...t, completed: !completed } : t),
         later: prev.later.map(t => t.id === taskId ? { ...t, completed: !completed } : t)
       }))
 
-      // Server update
       const result = await taskService.updateTask(taskId, { completed: !completed })
       
       if (!result.data) {
-        // Revert if server update fails
         loadTasks()
       } else {
-        // Refresh stats when task is completed
         if (!completed) {
           loadUserStats()
         }
       }
     } catch (error) {
       console.error('Error updating task:', error)
-      loadTasks() // Reload to sync with server
+      loadTasks()
     }
   }
 
-  // Delete task function
   const confirmDeleteTask = (taskId: string) => {
     setTaskToDelete(taskId)
   }
@@ -284,44 +302,34 @@ export default function DashboardPage() {
       const success = await taskService.deleteTask(taskToDelete)
       
       if (success) {
-        // Optimistic update - remove from UI immediately
         setTasks(prev => ({
           urgent: prev.urgent.filter(t => t.id !== taskToDelete),
           important: prev.important.filter(t => t.id !== taskToDelete),
           later: prev.later.filter(t => t.id !== taskToDelete)
         }))
-        loadUserStats() // Refresh stats
+        loadUserStats()
       } else {
         console.error('Failed to delete task')
-        loadTasks() // Reload to sync with server
+        loadTasks()
       }
     } catch (error) {
       console.error('Error deleting task:', error)
-      loadTasks() // Reload to sync with server
+      loadTasks()
     } finally {
       setTaskToDelete(null)
     }
   }
 
-  // Handle task added from navbar
   const handleTaskAdded = () => {
     setRefreshing(true)
     loadTasks()
   }
+  // --- End Task Handlers ---
 
-  // Format time for display
-  const formatTime = (minutes: number): string => {
-    if (isNaN(minutes)) return '0m'
-    const hours = Math.floor(minutes / 60)
-    const mins = minutes % 60
-    return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`
-  }
-
-  // Loading state
   if (loading) {
     return (
       <div 
-        className="page-container" // Use page-container for consistent layout
+        className="page-container"
         style={pageStyle}
       >
         <div style={loadingContainerStyle}>
@@ -342,7 +350,6 @@ export default function DashboardPage() {
 
   return (
     <div style={pageStyle}>
-      {/* Refresh indicator */}
       {refreshing && (
         <div style={{
           position: 'fixed',
@@ -358,19 +365,17 @@ export default function DashboardPage() {
           alignItems: 'center',
           gap: '8px'
         }}>
-          <div style={{
+          <div className="animate-spin" style={{
             width: '16px',
             height: '16px',
             border: '2px solid rgba(255,255,255,0.3)',
             borderTop: '2px solid white',
             borderRadius: '50%',
-            animation: 'spin 1s linear infinite'
           }} />
           Syncing tasks...
         </div>
       )}
 
-      {/* Apply new global classes for layout */}
       <div className="page-container dashboard-content">
         {/* Welcome Card with Stats */}
         <div style={focusCardStyle}>
@@ -384,7 +389,7 @@ export default function DashboardPage() {
           {/* Quick Stats */}
           {user && (
             <div 
-              className="stat-grid" // Use new class for mobile stats grid
+              className="stat-grid"
               style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
@@ -396,7 +401,7 @@ export default function DashboardPage() {
               }}
             >
               <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#3b82f6' }}>
+                <div style={{ fontSize: '18px', fontWeight: 'bold', color: 'var(--accent-primary)' }}>
                   {formatTime(userStats.totalFocusTime)}
                 </div>
                 <div style={{ fontSize: '12px', color: theme === 'dark' ? '#9ca3af' : '#6b7280' }}>
@@ -405,7 +410,7 @@ export default function DashboardPage() {
               </div>
               
               <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#10b981' }}>
+                <div style={{ fontSize: '18px', fontWeight: 'bold', color: 'var(--accent-success)' }}>
                   {userStats.tasksCompleted}
                 </div>
                 <div style={{ fontSize: '12px', color: theme === 'dark' ? '#9ca3af' : '#6b7280' }}>
@@ -426,7 +431,7 @@ export default function DashboardPage() {
                 <div style={{ 
                   fontSize: '18px', 
                   fontWeight: 'bold', 
-                  color: productivityScore > 80 ? '#10b981' : productivityScore > 60 ? '#f59e0b' : '#ef4444' 
+                  color: productivityScore > 80 ? 'var(--accent-success)' : productivityScore > 60 ? 'var(--accent-warning)' : 'var(--accent-danger)' 
                 }}>
                   {productivityScore}
                 </div>
@@ -437,10 +442,37 @@ export default function DashboardPage() {
             </div>
           )}
           
-          {/* Analytics Toggle Button */}
+          {/* Weekly Goal Progress Bar */}
+          {user && (
+            <div style={{ marginTop: '20px' }}>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '8px',
+                color: theme === 'dark' ? '#d1d5db' : '#4b5563',
+                fontSize: '14px',
+                fontWeight: '500'
+              }}>
+                <span>Weekly Focus Goal</span>
+                <span style={{ color: 'var(--text-primary)', fontWeight: '600' }}>
+                  {formatTime(totalWeekFocus)} / {formatTime(weeklyGoalInMinutes)} 
+                  ({Math.round(goalPercentage)}%)
+                </span>
+              </div>
+              <div className="progress-bar-container">
+                <div 
+                  className="progress-bar-fill" 
+                  style={{ width: `${goalPercentage}%` }}
+                />
+              </div>
+            </div>
+          )}
+          
+          {/* Toggle Button */}
           {user && (
             <button
-              onClick={() => setShowAnalytics(!showAnalytics)}
+              onClick={() => setShowTaskSections(!showTaskSections)}
               style={{
                 marginTop: '16px',
                 padding: '8px 16px',
@@ -455,7 +487,7 @@ export default function DashboardPage() {
                 gap: '8px'
               }}
             >
-              {showAnalytics ? '▼ Hide Analytics' : '▲ Show Analytics'}
+              {showTaskSections ? '▼ Hide Tasks' : '▲ Show Tasks'}
             </button>
           )}
           
@@ -478,21 +510,10 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* Analytics Dashboard */}
-        {showAnalytics && user && (
-          <>
-            <SimpleAnalyticsDashboard />
-            <div style={{ margin: '24px 0' }}>
-              <LiveProductivityMetrics />
-            </div>
-            <AdvancedAnalyticsDashboard />
-          </>
-        )}
-
-        {user ? (
-          /* Task Lists */
+        {/* Task Lists (conditionally rendered) */}
+        {user && showTaskSections && (
           <div 
-            className="dashboard-grid" // Use new class for mobile task grid
+            className="dashboard-grid"
             style={tasksGridStyle}
           >
             {/* Urgent Tasks */}
@@ -594,97 +615,27 @@ export default function DashboardPage() {
               </div>
             </div>
           </div>
-        ) : (
-          <div style={{
-            textAlign: 'center',
-            padding: '60px 20px',
-            backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff',
-            borderRadius: '16px',
-            border: theme === 'dark' ? '1px solid #374151' : '1px solid #e5e7eb'
-          }}>
-            <div style={{ fontSize: '48px', marginBottom: '20px' }}>👋</div>
-            <h3 style={{ 
-              color: theme === 'dark' ? '#f3f4f6' : '#374151',
-              marginBottom: '12px'
-            }}>
-              Welcome to FocusFlow!
-            </h3>
-            <p style={{ 
-              color: theme === 'dark' ? '#d1d5db' : '#6b7280',
-              marginBottom: '24px'
-            }}>
-              Sign in to start managing your tasks with AI-powered assistance.
-            </p>
-            <button
-              onClick={() => window.location.href = '/onboarding'}
-              style={{
-                padding: '12px 24px',
-                backgroundColor: '#2563eb',
-                color: 'white',
-                border: 'none',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                fontSize: '16px',
-                fontWeight: '500'
-              }}
-            >
-              Get Started
-            </button>
-          </div>
         )}
       </div>
 
       {/* Delete Confirmation Modal */}
       {taskToDelete && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.5)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000
-        }}>
-          <div style={{
-            backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff',
-            padding: '24px',
-            borderRadius: '12px',
-            maxWidth: '400px',
-            width: '90%'
-          }}>
-            <h3 style={{ margin: '0 0 16px 0', color: theme === 'dark' ? '#f3f4f6' : '#1f2937' }}>
-              Delete Task?
-            </h3>
-            <p style={{ color: theme === 'dark' ? '#d1d5db' : '#6b7280', marginBottom: '24px' }}>
+        <div className="modal-overlay">
+          <div className="chat-confirm-modal">
+            <h2 className="chat-confirm-title">Delete Task?</h2>
+            <p className="chat-confirm-text">
               Are you sure you want to delete this task? This action cannot be undone.
             </p>
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+            <div className="chat-confirm-buttons">
               <button
+                className="chat-confirm-button chat-confirm-button-cancel"
                 onClick={() => setTaskToDelete(null)}
-                style={{
-                  padding: '8px 16px',
-                  backgroundColor: '#6b7280',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '6px',
-                  cursor: 'pointer'
-                }}
               >
                 Cancel
               </button>
               <button
+                className="chat-confirm-button chat-confirm-button-danger"
                 onClick={deleteTask}
-                style={{
-                  padding: '8px 16px',
-                  backgroundColor: '#dc2626',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '6px',
-                  cursor: 'pointer'
-                }}
               >
                 Delete
               </button>

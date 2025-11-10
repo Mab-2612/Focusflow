@@ -24,11 +24,56 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     playSound, 
     selectedSound,
     isLoading: isLoadingSounds,
-    initAudio, // FIXED: Get the initAudio function
-    isAudioUnlocked // FIXED: Get the unlock state
+    initAudio,
+    isAudioUnlocked
   } = useSound()
 
   const [isSoundListOpen, setIsSoundListOpen] = useState(false)
+  
+  // FIXED: Real-time notification count state
+  const [unreadCount, setUnreadCount] = useState(0)
+
+  // FIXED: Function to fetch unread count
+  const fetchUnreadCount = async () => {
+    if (!user) return;
+    const { count, error } = await supabase
+      .from('notifications')
+      .select('id', { count: 'exact', head: true })
+      .eq('is_read', false)
+      .eq('user_id', user.id); // Ensure we only get this user's count
+      
+    if (error) {
+      console.error('Error fetching unread count:', error);
+    } else {
+      setUnreadCount(count || 0);
+    }
+  };
+
+  // FIXED: Load count on mount and listen for changes
+  useEffect(() => {
+    if (!user) return;
+
+    // Fetch initial count
+    fetchUnreadCount();
+
+    // Listen for new notifications in real-time
+    const channel = supabase
+      .channel('public:notifications')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` },
+        (payload) => {
+          // Refetch the count whenever a notification is added or changed
+          fetchUnreadCount();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
+
 
   useEffect(() => {
     if (!isOpen) {
@@ -36,14 +81,10 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     }
   }, [isOpen])
 
-  // FIXED: New click handler for the accordion
   const handleSoundAccordionClick = () => {
-    // Always attempt to init audio on click.
-    // The initAudio function will handle its own state and not run if already unlocked.
     if (!isAudioUnlocked) {
       initAudio();
     }
-    // Toggle the accordion
     setIsSoundListOpen(!isSoundListOpen);
   }
 
@@ -81,6 +122,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     textAlign: 'left' as const,
     backgroundColor: pathname === path ? 'var(--bg-tertiary)' : 'transparent',
     fontWeight: pathname === path ? '600' : '400',
+    position: 'relative' as const
   })
   
   const soundLoadingStyle = {
@@ -127,6 +169,15 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             <button style={navItemStyle('/profile')} onClick={() => handleLinkClick('/profile')}>
               👤 Profile
             </button>
+            
+            {/* FIXED: Real-time notification badge */}
+            <button style={navItemStyle('/notifications')} onClick={() => handleLinkClick('/notifications')}>
+              🔔 Notifications
+              {unreadCount > 0 && (
+                <span className="sidebar-badge">{unreadCount}</span>
+              )}
+            </button>
+            
             <button style={navItemStyle('/analytics')} onClick={() => handleLinkClick('/analytics')}>
               📊 Analytics
             </button>
@@ -136,8 +187,8 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             
             <button 
               className="sidebar-nav-item"
-              style={navItemStyle('/calm-mode')} // This style is just for highlight, not function
-              onClick={handleSoundAccordionClick} // FIXED: Use new handler
+              style={navItemStyle('/calm-mode')}
+              onClick={handleSoundAccordionClick}
             >
               🔊 Calming Sounds
               <span style={{ 

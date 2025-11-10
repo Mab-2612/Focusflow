@@ -6,6 +6,7 @@ import Navbar from '@/components/Navbar'
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/lib/supabase/client'
+import { useAnalyticsStore } from '@/lib/analyticsStore' 
 
 interface UserPreferences {
   auto_break_enabled: boolean
@@ -16,6 +17,7 @@ interface UserPreferences {
   default_view: 'dashboard' | 'voice' | 'pomodoro'
   sound_effects: boolean
   dark_mode?: boolean
+  daily_focus_goal?: number
 }
 
 const DEFAULT_PREFERENCES: UserPreferences = {
@@ -26,18 +28,22 @@ const DEFAULT_PREFERENCES: UserPreferences = {
   notifications_enabled: true,
   default_view: 'dashboard',
   sound_effects: true,
-  dark_mode: false 
+  dark_mode: false,
+  daily_focus_goal: 1
 }
 
 export default function PreferencesPage() {
   const { theme, toggleTheme, setTheme } = useTheme()
   const { user } = useAuth()
   const [isMounted, setIsMounted] = useState(false)
+  const { loadUserAnalytics } = useAnalyticsStore()
   
   const [preferences, setPreferences] = useState<UserPreferences>(DEFAULT_PREFERENCES)
   
   const [isSaving, setIsSaving] = useState(false)
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error' | 'reset'>('idle')
+  
+  // FIXED: Replaced saveStatus with toast state
+  const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' | 'info' } | null>(null)
   
   const [showResetConfirm, setShowResetConfirm] = useState(false)
 
@@ -138,6 +144,14 @@ export default function PreferencesPage() {
     }
   }, [user])
 
+  // FIXED: New function to show toast messages
+  const showToast = (message: string, type: 'success' | 'error' | 'info') => {
+    setToast({ message, type });
+    setTimeout(() => {
+      setToast(null);
+    }, 3000); // Hide after 3 seconds
+  }
+
   const loadUserPreferences = async () => {
     if (!user) return
     
@@ -166,7 +180,8 @@ export default function PreferencesPage() {
           ...data.preferences,
           break_duration: Number(data.preferences.break_duration) || DEFAULT_PREFERENCES.break_duration,
           work_duration: Number(data.preferences.work_duration) || DEFAULT_PREFERENCES.work_duration,
-          long_break_duration: Number(data.preferences.long_break_duration) || DEFAULT_PREFERENCES.long_break_duration
+          long_break_duration: Number(data.preferences.long_break_duration) || DEFAULT_PREFERENCES.long_break_duration,
+          daily_focus_goal: Number(data.preferences.daily_focus_goal) || DEFAULT_PREFERENCES.daily_focus_goal
         }
         setPreferences(loadedPreferences)
       } else {
@@ -205,18 +220,19 @@ export default function PreferencesPage() {
     if (!user) return
     
     setIsSaving(true)
-    setSaveStatus('idle')
 
     try {
-      let preferencesToSave = {
-        ...preferences,
-        dark_mode: theme === 'dark'
-      }
-      
+      let preferencesToSave: UserPreferences; 
+  
       if (isReset) {
         preferencesToSave = { ...DEFAULT_PREFERENCES, dark_mode: false };
-        setPreferences(preferencesToSave);
+        setPreferences(preferencesToSave); 
         setTheme('system');
+      } else {
+        preferencesToSave = {
+          ...preferences,
+          dark_mode: theme === 'dark'
+        }
       }
 
       const { error } = await supabase
@@ -230,23 +246,28 @@ export default function PreferencesPage() {
         })
       
       if (error) {
-        setSaveStatus('error')
+        showToast('Error saving preferences.', 'error') // FIXED: Show toast
       } else {
-        setSaveStatus(isReset ? 'reset' : 'success')
-        setTimeout(() => setSaveStatus('idle'), 2000)
+        if (isReset) {
+          showToast('Preferences reset to default!', 'info') // FIXED: Show toast
+        } else {
+          showToast('Preferences saved!', 'success') // FIXED: Show toast
+        }
+        if (user) {
+          loadUserAnalytics(user.id);
+        }
       }
     } catch (error) {
-      setSaveStatus('error')
+      showToast('An unexpected error occurred.', 'error') // FIXED: Show toast
     } finally {
       setIsSaving(false)
     }
   }
 
   const updatePreferencesInState = (key: keyof UserPreferences, value: any) => {
-    setSaveStatus('idle') 
-    if (['break_duration', 'work_duration', 'long_break_duration'].includes(key)) {
+    if (['break_duration', 'work_duration', 'long_break_duration', 'daily_focus_goal'].includes(key)) {
       value = parseInt(value)
-      if (isNaN(value)) value = 0; // Set state to 0 if input is empty
+      if (isNaN(value)) value = 0; 
     }
     
     setPreferences(prev => ({
@@ -271,36 +292,27 @@ export default function PreferencesPage() {
   }
 
   if (!isMounted) {
-    return (
-      <div style={containerStyle}>
-        <div className="page-container">
-          <h1 style={titleStyle}>Preferences</h1>
-        </div>
-        <Navbar />
-      </div>
-    )
+    // ...
   }
 
   return (
     <div style={containerStyle}>
+      {/* FIXED: New Toast Notification */}
+      {toast && (
+        <div className={`toast-container ${toast.type}`}>
+          <div className="toast-message">
+            {toast.type === 'success' && '✅ '}
+            {toast.type === 'error' && '❌ '}
+            {toast.type === 'info' && 'ℹ️ '}
+            {toast.message}
+          </div>
+        </div>
+      )}
+      
       <div className="page-container">
         <h1 style={titleStyle}>Preferences</h1>
         
-        {saveStatus === 'success' && (
-          <div style={{ padding: '12px 16px', backgroundColor: '#10b981', color: 'white', borderRadius: '8px', marginBottom: '16px' }}>
-            Preferences saved successfully!
-          </div>
-        )}
-        {saveStatus === 'reset' && (
-          <div style={{ padding: '12px 16px', backgroundColor: '#3b82f6', color: 'white', borderRadius: '8px', marginBottom: '16px' }}>
-            Preferences reset to default and saved.
-          </div>
-        )}
-        {saveStatus === 'error' && (
-          <div style={{ padding: '12px 16px', backgroundColor: '#ef4444', color: 'white', borderRadius: '8px', marginBottom: '16px' }}>
-            Failed to save preferences. Please try again.
-          </div>
-        )}
+        {/* FIXED: Removed old status messages */}
 
         <div>
           <div style={sectionStyle}>
@@ -335,7 +347,6 @@ export default function PreferencesPage() {
               <input 
                 type="number" 
                 id="workDuration"
-                // FIXED: Show empty string if value is 0
                 value={preferences.work_duration === 0 ? '' : preferences.work_duration}
                 onChange={(e) => updatePreferencesInState('work_duration', e.target.value)}
                 style={inputStyle}
@@ -349,7 +360,6 @@ export default function PreferencesPage() {
               <input 
                 type="number" 
                 id="breakDuration"
-                // FIXED: Show empty string if value is 0
                 value={preferences.break_duration === 0 ? '' : preferences.break_duration}
                 onChange={(e) => updatePreferencesInState('break_duration', e.target.value)}
                 style={inputStyle}
@@ -363,12 +373,24 @@ export default function PreferencesPage() {
               <input 
                 type="number" 
                 id="longBreakDuration"
-                // FIXED: Show empty string if value is 0
                 value={preferences.long_break_duration === 0 ? '' : preferences.long_break_duration}
                 onChange={(e) => updatePreferencesInState('long_break_duration', e.target.value)}
                 style={inputStyle}
                 min="5"
                 max="30"
+              />
+            </div>
+            
+            <div style={inputGroupStyle}>
+              <label htmlFor="dailyFocusGoal" style={labelStyle}>Daily Focus Goal (hours)</label>
+              <input 
+                type="number" 
+                id="dailyFocusGoal"
+                value={preferences.daily_focus_goal === 0 ? '' : (preferences.daily_focus_goal || 1)}
+                onChange={(e) => updatePreferencesInState('daily_focus_goal', e.target.value)}
+                style={inputStyle}
+                min="1"
+                max="12"
               />
             </div>
           </div>
