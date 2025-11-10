@@ -108,7 +108,7 @@ export default function AnalyticsPage() {
     }
   }
 
-  // FIXED: Improved CSV Export
+  // Improved CSV Export
   const exportAnalyticsData = () => {
     let csvContent = "FocusFlow Analytics Export\n";
     csvContent += `Exported on: ${new Date().toLocaleString()}\n\n`;
@@ -248,7 +248,8 @@ export default function AnalyticsPage() {
             </div>
           ) : (
             <>
-              <div className="stat-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+              {/* FIXED: Changed 150px to 120px */}
+              <div className="stat-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '16px', marginBottom: '24px' }}>
                 <div style={statCardStyle}>
                   <div style={{...statValueStyle, color: productivityScore > 80 ? 'var(--accent-success)' : productivityScore > 60 ? 'var(--accent-warning)' : 'var(--accent-danger)'}}>
                     {productivityScore}
@@ -300,7 +301,6 @@ export default function AnalyticsPage() {
         <div style={sectionStyle}>
           <h2 style={sectionTitleStyle}>Last 7 Days</h2>
           
-          {/* FIXED: This div wrapper fixes the recharts width/height error */}
           <div style={{ width: '100%', height: 300, minWidth: 0 }}>
             {isLoading ? (
               <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-tertiary)' }}>

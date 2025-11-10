@@ -30,7 +30,6 @@ const formatTime = (minutes: number): string => {
   return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`
 }
 
-// FIXED: Added UUID validation function
 const isValidUUID = (uuid: string): boolean => {
   if (!uuid) return false;
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -183,14 +182,12 @@ export default function DashboardPage() {
   const loadUserStats = useCallback(async () => {
     if (!user) return
     
-    // FIXED: Add UUID guard
     if (!isValidUUID(user.id)) {
       console.error("Dashboard: Invalid user ID, aborting stats load.");
       return;
     }
 
     try {
-      // Get total focus time and sessions
       const { data: sessionsData, error: sessionsError } = await supabase
         .from('focus_sessions')
         .select('duration, completed_tasks')
@@ -207,7 +204,6 @@ export default function DashboardPage() {
         })
       }
 
-      // Get completed tasks count
       const { data: tasksData, error: tasksError } = await supabase
         .from('tasks')
         .select('id')
@@ -232,7 +228,6 @@ export default function DashboardPage() {
       return
     }
     
-    // FIXED: Add UUID guard
     if (!isValidUUID(user.id)) {
       console.error("Dashboard: Invalid user ID, aborting task load.");
       setLoading(false);
@@ -392,7 +387,8 @@ export default function DashboardPage() {
               className="stat-grid"
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+                // FIXED: Changed 150px to 120px
+                gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
                 gap: '16px',
                 marginTop: '20px',
                 padding: '16px',
