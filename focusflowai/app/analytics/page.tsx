@@ -55,7 +55,8 @@ export default function AnalyticsPage() {
     weeklyTrends, 
     isLoading, 
     loadUserAnalytics,
-    daily_focus_goal
+    daily_focus_goal,
+    lastLoaded // FIXED: Get the timestamp
   } = useAnalyticsStore()
 
   const [isMounted, setIsMounted] = useState(false)
@@ -71,12 +72,21 @@ export default function AnalyticsPage() {
     }, { totalWeekFocus: 0, totalWeekTasks: 0 });
   }, [weeklyTrends]);
 
+  // FIXED: This now checks if the data is stale before fetching
   useEffect(() => {
     setIsMounted(true)
     if (user) {
-      loadUserAnalytics(user.id)
+      const now = new Date();
+      // Check if data is older than 5 minutes
+      const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000); 
+
+      if (!lastLoaded || new Date(lastLoaded) < fiveMinutesAgo) {
+        // If no data OR data is stale, fetch.
+        loadUserAnalytics(user.id);
+      }
+      // Otherwise, do nothing. The store data is fresh and already loaded.
     }
-  }, [user, loadUserAnalytics])
+  }, [user, loadUserAnalytics, lastLoaded])
 
   // --- Popover Logic ---
   useEffect(() => {
@@ -253,7 +263,8 @@ export default function AnalyticsPage() {
                   <div style={{...statValueStyle, color: productivityScore > 80 ? 'var(--accent-success)' : productivityScore > 60 ? 'var(--accent-warning)' : 'var(--accent-danger)'}}>
                     {productivityScore}
                   </div>
-                  <div style={statLabelStyle}>Productivity Score</div>
+                  {/* FIXED: Shortened label */}
+                  <div style={statLabelStyle}>Score</div>
                 </div>
                 <div style={statCardStyle}>
                   <div style={{...statValueStyle, color: 'var(--accent-primary)'}}>
@@ -307,10 +318,15 @@ export default function AnalyticsPage() {
               </div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                {/* FIXED: Adjusted margins for better label spacing */}
                 <BarChart data={weeklyTrends} margin={{ top: 5, right: -40, left: -28, bottom: 20 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke={theme === 'dark' ? '#374151' : '#e5e7eb'} />
-                  <XAxis dataKey="day" stroke={theme === 'dark' ? '#9ca3af' : '#6b7280'} interval={0} />
+                  
+                  <XAxis 
+                    dataKey="day" 
+                    stroke={theme === 'dark' ? '#9ca3af' : '#6b7280'} 
+                    interval={0} 
+                    tick={{ fontSize: 13 }} 
+                  />
                   
                   <YAxis 
                     yAxisId="left" 
