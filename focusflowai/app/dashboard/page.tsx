@@ -177,8 +177,8 @@ export default function DashboardPage() {
     textAlign: 'center' as const,
     padding: '20px'
   }
+  // --- End Styles ---
 
-  // Load user statistics
   const loadUserStats = useCallback(async () => {
     if (!user) return
     
@@ -221,7 +221,6 @@ export default function DashboardPage() {
     }
   }, [user])
 
-  // Load tasks
   const loadTasks = useCallback(async () => {
     if (!user) {
       setLoading(false)
@@ -387,8 +386,8 @@ export default function DashboardPage() {
               className="stat-grid"
               style={{
                 display: 'grid',
-                // FIXED: Changed 150px to 120px
-                gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
+                // FIXED: Changed 150px to 100px
+                gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))',
                 gap: '16px',
                 marginTop: '20px',
                 padding: '16px',
