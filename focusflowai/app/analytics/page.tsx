@@ -248,7 +248,6 @@ export default function AnalyticsPage() {
             </div>
           ) : (
             <>
-              {/* FIXED: Changed 150px to 120px */}
               <div className="stat-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '16px', marginBottom: '24px' }}>
                 <div style={statCardStyle}>
                   <div style={{...statValueStyle, color: productivityScore > 80 ? 'var(--accent-success)' : productivityScore > 60 ? 'var(--accent-warning)' : 'var(--accent-danger)'}}>
@@ -309,7 +308,7 @@ export default function AnalyticsPage() {
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 {/* FIXED: Adjusted margins for better label spacing */}
-                <BarChart data={weeklyTrends} margin={{ top: 5, right: 20, left: -20, bottom: 20 }}>
+                <BarChart data={weeklyTrends} margin={{ top: 5, right: 30, left: 0, bottom: 20 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke={theme === 'dark' ? '#374151' : '#e5e7eb'} />
                   <XAxis dataKey="day" stroke={theme === 'dark' ? '#9ca3af' : '#6b7280'} interval={0} />
                   
