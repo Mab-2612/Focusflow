@@ -1,8 +1,9 @@
 // hooks/useGoogleTTS.ts
 import { useState, useEffect } from 'react'
 
-// FIXED: This regex will match and remove most emojis and symbols
 const emojiRegex = /([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|\uD83E[\uDD00-\uDFFF])/g;
+// FIXED: New regex to remove markdown asterisks
+const markdownRegex = /\*/g;
 
 export const useGoogleTTS = () => {
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([])
@@ -12,7 +13,6 @@ export const useGoogleTTS = () => {
     const loadVoices = () => {
       const availableVoices = window.speechSynthesis.getVoices()
       if (availableVoices.length > 0) {
-        // Filter for Google/high-quality voices
         const googleVoices = availableVoices.filter(voice => 
           voice.name.includes('Google') || voice.lang.startsWith('en')
         )
@@ -21,10 +21,7 @@ export const useGoogleTTS = () => {
       }
     }
 
-    // Load voices immediately
     loadVoices()
-    
-    // Voices may load asynchronously
     window.speechSynthesis.onvoiceschanged = loadVoices
     
     return () => {
@@ -45,15 +42,13 @@ export const useGoogleTTS = () => {
       return
     }
 
-    // Stop any currently speaking utterance
     window.speechSynthesis.cancel()
     
-    // FIXED: Clean the text by removing all emojis before speaking
-    const cleanText = text.replace(emojiRegex, '');
+    // FIXED: Clean text by removing emojis AND markdown
+    const cleanText = text.replace(emojiRegex, '').replace(markdownRegex, '');
 
     const utterance = new SpeechSynthesisUtterance(cleanText)
     
-    // Select the best available voice
     const bestVoice = voices.find(v => v.name === 'Google US English') ||
                       voices.find(v => v.lang === 'en-US') ||
                       voices.find(v => v.lang.startsWith('en')) ||

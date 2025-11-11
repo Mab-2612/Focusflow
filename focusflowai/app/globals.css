@@ -1,4 +1,4 @@
-/* app/globals.css - Scroll Fix */
+/* app/globals.css - FINAL */
 
 /* ===== RESET & BASE STYLES ===== */
 *, *::before, *::after {
@@ -7,7 +7,7 @@
   padding: 0;
 }
 
-/* ===== FLUID TYPOGRAPHY (SCALES WITH SCREEN) ===== */
+/* ===== FLUID TYPOGRAPHY ===== */
 :root {
   font-size: 16px; 
   --font-xs: clamp(0.75rem, 0.5vw + 0.65rem, 0.875rem);
@@ -59,10 +59,14 @@
   --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.3);
 }
 
-html, body, #__next {
+/* FIXED: Critical for mobile keyboard layout */
+html {
+  height: -webkit-fill-available; /* iOS Safari fix */
+}
+body, #__next {
   width: 100%;
-  min-height: 100%; 
-  height: auto;
+  min-height: 100vh;
+  min-height: 100dvh; /* Dynamic viewport height */
 }
 
 body {
@@ -93,6 +97,7 @@ body {
   background-color: var(--bg-primary);
   border-bottom: 1px solid var(--border-light);
   z-index: 900;
+  flex-shrink: 0; /* Prevent header from shrinking */
 }
 
 .mobile-menu-button {
@@ -284,15 +289,12 @@ body {
   padding: 16px;
   padding-left: max(16px, env(safe-area-inset-left));
   padding-right: max(16px, env(safe-area-inset-right));
-  /* This padding ensures content can scroll above the 80px navbar */
-  padding-bottom: 120px; 
-  /* FIXED: Removed min-height from here */
+  padding-bottom: 120px; /* Space for bottom navbar */
 }
 @media (min-width: 768px) {
   .page-container {
     padding: 32px;
     padding-bottom: 32px;
-    /* FIXED: Removed min-height from here */
   }
 }
 
@@ -317,6 +319,8 @@ body {
   padding-bottom: env(safe-area-inset-bottom);
   z-index: 1000;
   gap: 8px;
+  
+  flex-shrink: 0;
 }
 
 [data-theme="dark"] .navbar {
@@ -754,25 +758,71 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   transition: width 0.4s ease;
 }
 
-/* app/globals.css (ADD THIS AT THE END) */
-
 /* ===== CHAT PAGE KEYBOARD FIX ===== */
 .chat-page-container {
-  /* Use 100dvh (dynamic viewport height) to respect mobile URL bars */
-  height: 100dvh; 
+  height: 100vh; /* Fallback */
+  height: 100dvh; /* This is the key */
   display: flex;
   flex-direction: column;
-}
-
-/* On desktop, the sidebar breaks this. Use 100vh instead */
-@media (min-width: 768px) {
-  .chat-page-container {
-    height: 100vh;
-  }
+  /* Prevent the whole page from scrolling */
+  overflow: hidden; 
 }
 
 .chat-messages-wrapper {
-  flex: 1; /* This is what makes the chat area grow */
+  flex: 1; /* This makes the chat area grow */
   overflow-y: auto; /* This is where the scrolling happens */
-  padding-bottom: 200px; /* Space for input and navbar */
+  /* Remove page-container's 120px bottom padding */
+  padding-bottom: 24px !important; 
+}
+
+/* This is the welcome message ("Ask me anything") */
+.chat-welcome-message {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-tertiary);
+  /* Ensure it doesn't shrink */
+  min-height: 200px;
+}
+
+/* ===== CHAT MARKDOWN STYLES ===== */
+.chat-message-content p {
+  margin: 0;
+  padding: 0;
+}
+.chat-message-content ul {
+  list-style-type: disc;
+  padding-left: 20px;
+  margin-top: 8px;
+  margin-bottom: 8px;
+  list-style-position: outside;
+}
+.chat-message-content li {
+  margin-bottom: 4px;
+}
+.chat-message-content strong {
+  font-weight: 600;
+}
+.chat-message-content em {
+  font-style: italic;
+}
+/* Use a bullet point for dark mode lists */
+[data-theme="dark"] .chat-message-content ul {
+  list-style-type: '• ';
+}
+
+/* ===== CHAT CONTEXT MENU STYLES ===== */
+.context-menu-button {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  text-align: left;
+  color: var(--text-primary);
+  font-size: var(--font-sm);
+  border-radius: var(--radius-sm);
+}
+.context-menu-button:hover {
+  background-color: var(--bg-tertiary);
 }

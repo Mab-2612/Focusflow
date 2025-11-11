@@ -3,21 +3,42 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useTheme } from '@/components/ThemeContext'
-import Navbar from '@/components/Navbar'
+import Navbar from '@/components/Navbar' // This should be removed if it's in layout.tsx
 import { useGoogleTTS } from '@/hooks/useGoogleTTS'
 import { useAuth } from '@/hooks/useAuth'
 import { useSidebar } from '@/contexts/SidebarContext'
 import { supabase } from '@/lib/supabase/client'
 import { type User } from '@supabase/supabase-js'
 
+// --- Types ---
 interface Message {
   id: string
-  role: 'user' | 'assistant' // Changed from 'type' to 'role'
+  role: 'user' | 'assistant'
   content: string
   timestamp: Date
 }
 
-const MAX_MESSAGES = 100; // Updated limit
+interface ContextMenu {
+  visible: boolean;
+  x: number;
+  y: number;
+  messageId: string | null;
+  messageContent: string;
+  messageRole: 'user' | 'assistant';
+}
+
+const MAX_MESSAGES = 100;
+
+// --- Helper Functions ---
+function parseMarkdown(text: string): string {
+  if (!text) return '';
+  
+  return text
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    .replace(/^\* (.*$)/gm, '<ul><li>$1</li></ul>')
+    .replace(/<\/ul>\n<ul>/gm, '')
+}
 
 export default function ChatPage() {
   const { theme } = useTheme()
@@ -30,50 +51,62 @@ export default function ChatPage() {
   const [isTtsEnabled, setIsTtsEnabled] = useState(true) 
   const [showClearConfirm, setShowClearConfirm] = useState(false)
   const [isLoadingHistory, setIsLoadingHistory] = useState(true)
+  
+  const [contextMenu, setContextMenu] = useState<ContextMenu>({
+    visible: false,
+    x: 0,
+    y: 0,
+    messageId: null,
+    messageContent: '',
+    messageRole: 'user'
+  });
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null); 
+  const tempMessageIdRef = useRef<string | null>(null);
 
   const { speak, stopSpeaking } = useGoogleTTS()
   
   // --- DATA FETCHING & REALTIME ---
 
-  // Fetch initial chat history from database
   const fetchHistory = async (currentUser: User) => {
     setIsLoadingHistory(true);
-    const { data, error } = await supabase
-      .from('chat_messages')
-      .select('*')
-      .eq('user_id', currentUser.id)
-      .order('created_at', { ascending: false })
-      .limit(MAX_MESSAGES); // Get the 100 most recent
+    try {
+      const { data, error } = await supabase
+        .from('chat_messages')
+        .select('*')
+        .eq('user_id', currentUser.id)
+        .order('created_at', { ascending: false })
+        .limit(MAX_MESSAGES);
 
-    if (error) {
-      console.error('Error fetching chat history:', error);
-    } else if (data) {
-      // Map to local state format and reverse to show oldest first
-      const formattedMessages = data.map(msg => ({
-        id: msg.id,
-        role: msg.role as 'user' | 'assistant',
-        content: msg.content,
-        timestamp: new Date(msg.created_at)
-      })).reverse(); // Reverse to get chronological order
-      setMessages(formattedMessages);
+      if (error) {
+        console.error('Error fetching chat history:', error);
+      } else if (data) {
+        const formattedMessages = data.map(msg => ({
+          id: msg.id,
+          role: msg.role as 'user' | 'assistant',
+          content: msg.content,
+          timestamp: new Date(msg.created_at)
+        })).reverse();
+        setMessages(formattedMessages);
+      }
+    } catch (e) {
+      console.error('Catastrophic error fetching history:', e);
+    } finally {
+      // FIXED: This ensures the loading screen *always* goes away
+      setIsLoadingHistory(false);
     }
-    setIsLoadingHistory(false);
   };
 
-  // Load history on user load
   useEffect(() => {
     if (user) {
       fetchHistory(user);
     } else {
-      setMessages([]); // Clear messages if no user
+      setMessages([]);
       setIsLoadingHistory(false);
     }
   }, [user]);
 
-  // Real-time subscription for cross-device sync
   useEffect(() => {
     if (!user) return;
 
@@ -89,24 +122,36 @@ export default function ChatPage() {
         },
         (payload) => {
           const newMessage = payload.new as any;
-          
-          // Add the new message to state, but check for duplicates
           setMessages(prev => {
-            // Check if message ID already exists
-            if (prev.find(msg => msg.id === newMessage.id)) {
-              return prev;
+            if (prev.find(msg => msg.id === newMessage.id)) return prev;
+
+            if (newMessage.role === 'user' && tempMessageIdRef.current && prev.find(m => m.id === tempMessageIdRef.current)) {
+              return prev.map(msg => 
+                msg.id === tempMessageIdRef.current
+                  ? {
+                      id: newMessage.id,
+                      role: newMessage.role,
+                      content: newMessage.content,
+                      timestamp: new Date(newMessage.created_at)
+                    }
+                  : msg
+              );
+            } else {
+              return [
+                ...prev,
+                {
+                  id: newMessage.id,
+                  role: newMessage.role,
+                  content: newMessage.content,
+                  timestamp: new Date(newMessage.created_at)
+                }
+              ].slice(-MAX_MESSAGES);
             }
-            // Add the new message
-            return [
-              ...prev,
-              {
-                id: newMessage.id,
-                role: newMessage.role,
-                content: newMessage.content,
-                timestamp: new Date(newMessage.created_at)
-              }
-            ].slice(-MAX_MESSAGES); // Enforce max length
           });
+          
+          if (newMessage.role === 'user') {
+            tempMessageIdRef.current = null;
+          }
         }
       )
       .subscribe();
@@ -116,21 +161,33 @@ export default function ChatPage() {
     };
   }, [user]);
 
-
-  // Scroll to bottom when new messages are added
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages]);
   
-  // Auto-focus input
   useEffect(() => {
     if (!isProcessing) {
-      inputRef.current?.focus();
+      const timer = setTimeout(() => {
+        inputRef.current?.focus();
+      }, 100);
+      return () => clearTimeout(timer);
     }
-  }, [isProcessing]);
-
+  }, [isProcessing, messages]);
+  
+  useEffect(() => {
+    const handleClick = () => setContextMenu({ ...contextMenu, visible: false });
+    if (contextMenu.visible) {
+      window.addEventListener('click', handleClick);
+    }
+    return () => window.removeEventListener('click', handleClick);
+  }, [contextMenu.visible]);
 
   // --- HANDLERS ---
+  const addMessage = (message: Message) => {
+    setMessages(prev => {
+      return [...prev, message].slice(-MAX_MESSAGES);
+    });
+  };
 
   const handleUserMessage = async (content: string) => {
     if (!content.trim() || isProcessing || !user) return
@@ -138,53 +195,60 @@ export default function ChatPage() {
     setInputText('')
     setIsProcessing(true)
     
-    // Optimistically add user message to UI
-    const tempId = `temp_${Date.now()}`
+    tempMessageIdRef.current = `temp_${Date.now()}`
     const userMessage: Message = {
-      id: tempId,
+      id: tempMessageIdRef.current,
       role: 'user',
       content: content,
       timestamp: new Date()
     }
-    setMessages(prev => [...prev, userMessage].slice(-MAX_MESSAGES));
+    addMessage(userMessage);
 
     try {
-      // Send to API route (which saves both user & assistant messages)
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      
       const response = await fetch('/api/voice-command', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: content, user_id: user.id })
+        body: JSON.stringify({ 
+          message: content, 
+          user_id: user.id,
+          timezone: timezone
+        })
       });
       
+      const result = await response.json();
       if (!response.ok) {
-        throw new Error('API request failed');
+        throw new Error(result.error || 'API request failed');
       }
       
-      const { response: assistantResponse } = await response.json();
+      const assistantResponse = result.response;
       
-      // Speak the response if TTS is enabled
       if (isTtsEnabled) {
         await speak(assistantResponse, () => {})
       }
       
-      // Remove the optimistic message.
-      // The realtime subscription will add *both* the real user message
-      // and the assistant message from the database.
-      setMessages(prev => prev.filter(msg => msg.id !== tempId));
+      const aiMessage: Message = {
+        id: `ai_${Date.now()}`,
+        role: 'assistant',
+        content: assistantResponse,
+        timestamp: new Date()
+      };
+      addMessage(aiMessage);
 
     } catch (error) {
       console.error('Error processing message:', error)
-      // Remove optimistic message on failure
-      setMessages(prev => prev.filter(msg => msg.id !== tempId));
-      
-      // Show an error message
+      if (tempMessageIdRef.current) {
+        setMessages(prev => prev.filter(msg => msg.id !== tempMessageIdRef.current));
+        tempMessageIdRef.current = null;
+      }
       const errorMessage: Message = {
         id: `err_${Date.now()}`,
         role: 'assistant',
         content: "Sorry, I encountered an error. Please try again.",
         timestamp: new Date()
       }
-      setMessages(prev => [...prev, errorMessage].slice(-MAX_MESSAGES));
+      addMessage(errorMessage);
     } finally {
       setIsProcessing(false)
     }
@@ -194,96 +258,100 @@ export default function ChatPage() {
     e.preventDefault()
     handleUserMessage(inputText.trim())
   }
-
   const toggleTts = () => {
     if (isTtsEnabled) {
       stopSpeaking()
     }
     setIsTtsEnabled(!isTtsEnabled)
   }
-
   const clearChat = () => {
     setShowClearConfirm(true);
   }
   
-  // Updated to delete from Supabase
   const handleConfirmClear = async () => {
     if (!user) return;
-    
-    // Optimistically clear UI
     setMessages([])
     setShowClearConfirm(false);
     stopSpeaking()
-
-    // Call database deletion
     const { error } = await supabase
       .from('chat_messages')
       .delete()
       .eq('user_id', user.id);
-      
     if (error) {
       console.error('Error clearing chat history:', error);
-      // If delete fails, reload the history
       fetchHistory(user);
     }
   }
+  
+  const handleShowMenu = (e: React.MouseEvent, message: Message) => {
+    e.preventDefault();
+    setContextMenu({
+      visible: true,
+      x: e.clientX,
+      y: e.clientY,
+      messageId: message.id,
+      messageContent: message.content,
+      messageRole: message.role
+    });
+  };
+  const handleCopy = () => {
+    navigator.clipboard.writeText(contextMenu.messageContent);
+  };
+  const handleEdit = () => {
+    setInputText(contextMenu.messageContent);
+    inputRef.current?.focus();
+  };
 
   // --- STYLES ---
   const containerStyle = {
-    // This class handles the 100dvh height
+    backgroundColor: 'var(--bg-primary)',
   }
-
   const headerStyle = {
     backgroundColor: 'var(--bg-primary)',
     borderBottom: `1px solid var(--border-light)`,
-    padding: '16px 24px',
-    paddingTop: 'max(16px, env(safe-area-inset-top))',
+    padding: '12px 16px',
+    paddingTop: 'max(12px, env(safe-area-inset-top))',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
     flexShrink: 0
   }
-
   const titleStyle = {
     fontSize: 'var(--font-lg)',
-    fontWeight: '700',
+    fontWeight: '600',
     color: 'var(--text-primary)',
     margin: 0,
     textAlign: 'center' as const,
     flex: 1, 
   }
-
   const chatContainerStyle = {
     maxWidth: '800px',
     margin: '0 auto',
     padding: '0 20px',
     width: '100%',
-    flex: 1, // Let this grow
+    flex: 1,
     display: 'flex',
     flexDirection: 'column' as const,
-    overflow: 'hidden' // Hide overflow
+    overflow: 'hidden'
   }
-
   const messagesStyle = {
-    // This class handles scrolling
     paddingTop: '20px',
     display: 'flex',
     flexDirection: 'column' as const,
     gap: '12px'
   }
-
   const floatingInputContainerStyle = {
-    position: 'fixed' as const,
-    bottom: '80px', // Sits above the 80px navbar
+    position: 'sticky' as const,
+    bottom: '80px',
     left: '0',
     right: '0',
-    padding: '16px 24px 8px 24px', // Less bottom padding
+    padding: '16px 24px 8px 24px',
     paddingBottom: 'max(8px, env(safe-area-inset-bottom))',
     backgroundColor: 'var(--bg-primary)',
-    background: `linear-gradient(to top, var(--bg-primary) 70%, transparent 100%)`,
-    zIndex: 999 // Below navbar, above content
+    background: `linear-gradient(to top, var(--bg-primary) 80px, transparent 100%)`,
+    zIndex: 999,
+    flexShrink: 0
   }
-
   const textInputWrapperStyle = {
     display: 'flex',
     alignItems: 'center',
@@ -297,7 +365,6 @@ export default function ChatPage() {
     margin: '0 auto',
     boxShadow: 'var(--shadow-md)',
   }
-  
   const textInputStyle = {
     flex: 1,
     padding: '12px 0',
@@ -307,7 +374,6 @@ export default function ChatPage() {
     fontSize: '16px',
     outline: 'none', 
   }
-
   const sendButtonStyle = {
     padding: '8px',
     backgroundColor: '#3b82f6',
@@ -325,7 +391,6 @@ export default function ChatPage() {
     opacity: (isProcessing || !inputText.trim()) ? 0.6 : 1,
     transition: 'all 0.2s ease'
   }
-  
   const headerButtonStyle = {
     padding: '8px',
     backgroundColor: 'transparent',
@@ -340,16 +405,13 @@ export default function ChatPage() {
     fontSize: '20px',
     flexShrink: 0 
   }
-  
-  // FIXED: Style for sticky clear button
   const clearChatContainerStyle = {
     display: 'flex',
     justifyContent: 'center',
-    paddingBottom: '8px',
+    paddingBottom: '12px',
     maxWidth: '800px',
     margin: '0 auto'
   }
-
   const clearChatButtonStyle = {
     fontSize: '12px',
     fontWeight: '500',
@@ -360,9 +422,20 @@ export default function ChatPage() {
     borderRadius: '6px',
     backgroundColor: 'var(--bg-tertiary)'
   }
+  const contextMenuStyle = {
+    position: 'fixed' as const,
+    top: `${contextMenu.y}px`,
+    left: `${contextMenu.x}px`,
+    zIndex: 1012,
+    backgroundColor: 'var(--bg-secondary)',
+    borderRadius: 'var(--radius-md)',
+    boxShadow: 'var(--shadow-lg)',
+    border: '1px solid var(--border-light)',
+    padding: '8px',
+    animation: 'fadeIn 0.1s ease-out'
+  }
 
   return (
-    // FIXED: Use className for layout
     <div style={containerStyle} className="chat-page-container">
       <header style={headerStyle} className="mobile-header">
         
@@ -388,30 +461,21 @@ export default function ChatPage() {
         </button>
       </header>
 
-      {/* Chat Container */}
       <div 
+        className="page-container chat-messages-wrapper"
         style={chatContainerStyle}
-        // FIXED: Remove className="page-container"
       >
-        {/* Messages */}
-        <div style={messagesStyle} className="chat-messages-wrapper">
+        <div style={messagesStyle} >
           
           {(isLoadingHistory && messages.length === 0) && (
-            <div style={{ textAlign: 'center', color: 'var(--text-tertiary)', padding: '40px' }}>
+            <div className="chat-welcome-message">
               <div className="animate-spin" style={{ fontSize: '48px', marginBottom: '16px' }}>⏳</div>
               Loading chat history...
             </div>
           )}
 
           {(!isLoadingHistory && messages.length === 0) && (
-            <div style={{
-              flex: 1,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: theme === 'dark' ? '#4b5563' : '#d1d5db'
-            }}>
+            <div className="chat-welcome-message">
               <span style={{ fontSize: '64px', marginBottom: '16px' }}>💬</span>
               <h2 style={{ color: 'var(--text-primary)', fontSize: 'var(--font-lg)', marginBottom: '8px' }}>
                 {user ? "Ask me anything!" : "Please Sign In"}
@@ -426,8 +490,12 @@ export default function ChatPage() {
             <div 
               key={message.id} 
               className={`message-bubble ${message.role === 'user' ? 'message-user' : 'message-assistant'}`}
+              onContextMenu={(e) => handleShowMenu(e, message)}
             >
-              <div>{message.content}</div>
+              <div 
+                className="chat-message-content" 
+                dangerouslySetInnerHTML={{ __html: parseMarkdown(message.content) }} 
+              />
               <div className="message-timestamp">
                 {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </div>
@@ -437,9 +505,7 @@ export default function ChatPage() {
         </div>
       </div>
 
-      {/* Floating Input Bar */}
-      <div style={floatingInputContainerStyle}>
-        {/* FIXED: Added sticky clear button */}
+      <div style={floatingInputContainerStyle}> 
         {messages.length > 0 && (
           <div style={clearChatContainerStyle}>
             <button
@@ -489,7 +555,19 @@ export default function ChatPage() {
         </form>
       </div>
       
-      {/* Confirmation Modal */}
+      {contextMenu.visible && (
+        <div style={contextMenuStyle}>
+          <button className="context-menu-button" onClick={handleCopy}>
+            Copy Text
+          </button>
+          {contextMenu.messageRole === 'user' && (
+            <button className="context-menu-button" onClick={handleEdit}>
+              Edit & Resend
+            </button>
+          )}
+        </div>
+      )}
+
       {showClearConfirm && (
         <div className="modal-overlay">
           <div className="chat-confirm-modal">
@@ -515,7 +593,7 @@ export default function ChatPage() {
         </div>
       )}
 
-      <Navbar />
+      {/* Navbar is in layout.tsx */}
     </div>
   )
 }

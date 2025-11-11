@@ -7,11 +7,12 @@ import AppProvider from '@/components/AppProvider'
 import AuthGuard from '@/components/AuthGuard'
 import GlobalSoundControl from '@/components/GlobalSoundControl'
 import GlobalElementsLoader from '@/components/GlobalElementsLoader'
-import { SidebarProvider } from '@/contexts/SidebarContext' // Import new provider
+import { SidebarProvider } from '@/contexts/SidebarContext'
 import MobileHeader from '@/components/MobileHeader'
 import Sidebar from '@/components/Sidebar'
 import GlobalStopButton from '@/components/GlobalStopButton'
-import { usePathname } from 'next/navigation' // Import usePathname
+import Navbar from '@/components/Navbar' // Import Navbar here
+import { usePathname } from 'next/navigation'
 
 import './globals.css'
 
@@ -20,7 +21,6 @@ export default function RootLayout({
 }: {
   children: React.ReactNode
 }) {
-  // State for sidebar is now in SidebarProvider
   const pathname = usePathname()
   const isChatPage = pathname === '/chat'
 
@@ -36,11 +36,9 @@ export default function RootLayout({
           <SoundProvider>
             <AppProvider>
               <AuthGuard>
-                {/* Wrap everything in the new provider */}
                 <SidebarProvider>
                   <GlobalElementsLoader />
                   
-                  {/* FIXED: Only show MobileHeader if NOT on chat page */}
                   {!isChatPage && <MobileHeader />}
                   
                   <Sidebar />
@@ -48,6 +46,9 @@ export default function RootLayout({
                   <GlobalStopButton />
                   
                   {children}
+                  
+                  {/* FIXED: Navbar is moved here, outside the page content */}
+                  <Navbar /> 
                 </SidebarProvider>
               </AuthGuard>
             </AppProvider>
