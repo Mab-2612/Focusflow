@@ -303,7 +303,7 @@ export default function PlanningPage() {
 
   // --- STYLES ---
   const containerStyle = {
-    minHeight: '100vh',
+    // minHeight: '100vh',
     backgroundColor: theme === 'dark' ? '#111827' : '#f9fafb',
   }
 
@@ -437,15 +437,6 @@ export default function PlanningPage() {
   return (
     <div style={containerStyle}>
       <div className="page-container">
-        <h1 style={{
-          fontSize: 'var(--font-xl)',
-          marginBottom: '32px',
-          color: theme === 'dark' ? '#f3f4f6' : '#1f2937',
-          textAlign: 'center',
-          fontWeight: '700'
-        }}>
-          📅 Planning & Calendar
-        </h1>
 
         {/* --- View Toggler for Mobile --- */}
         <div className="view-toggler-mobile" style={{ display: 'flex', borderRadius: '8px', overflow: 'hidden', marginBottom: '16px' }}>

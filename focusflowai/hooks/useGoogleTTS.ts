@@ -1,82 +1,83 @@
 // hooks/useGoogleTTS.ts
-"use client"
+import { useState, useEffect } from 'react'
 
-import { useState, useCallback, useRef } from 'react'
+// FIXED: This regex will match and remove most emojis and symbols
+const emojiRegex = /([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|\uD83E[\uDD00-\uDFFF])/g;
 
 export const useGoogleTTS = () => {
-  const [isSpeaking, setIsSpeaking] = useState(false)
-  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null)
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([])
+  const [isLoading, setIsLoading] = useState(true)
 
-  const speak = useCallback(async (text: string, onEnd?: () => void) => {
-    if (!text || text === '[STOPPED]' || text.trim() === '' || typeof window === 'undefined') {
-      onEnd?.();
-      return;
-    }
-
-    if (!('speechSynthesis' in window)) {
-      console.error('Speech synthesis not supported in this browser.');
-      onEnd?.();
-      return;
-    }
-
-    // Stop any current speech
-    window.speechSynthesis.cancel();
-    setIsSpeaking(true);
-
-    try {
-      const utterance = new SpeechSynthesisUtterance(text);
-      utteranceRef.current = utterance;
-
-      // Basic configuration
-      utterance.rate = 1.0;
-      utterance.pitch = 1.0;
-      utterance.volume = 0.9;
-      
-      // Try to find a good voice
-      const voices = window.speechSynthesis.getVoices();
-      const preferredVoice = voices.find(v => v.name.includes('Google') && v.lang.startsWith('en')) || 
-                             voices.find(v => v.lang.startsWith('en-US')) || 
-                             voices.find(v => v.lang.startsWith('en'));
-                             
-      if (preferredVoice) {
-        utterance.voice = preferredVoice;
+  useEffect(() => {
+    const loadVoices = () => {
+      const availableVoices = window.speechSynthesis.getVoices()
+      if (availableVoices.length > 0) {
+        // Filter for Google/high-quality voices
+        const googleVoices = availableVoices.filter(voice => 
+          voice.name.includes('Google') || voice.lang.startsWith('en')
+        )
+        setVoices(googleVoices.length > 0 ? googleVoices : availableVoices)
+        setIsLoading(false)
       }
+    }
 
-      utterance.onend = () => {
-        setIsSpeaking(false);
-        utteranceRef.current = null;
-        onEnd?.();
-      };
-
-      utterance.onerror = (event) => {
-        console.error('Speech synthesis error:', event.error);
-        setIsSpeaking(false);
-        utteranceRef.current = null;
-        onEnd?.();
-      };
-      
-      window.speechSynthesis.speak(utterance);
-
-    } catch (error) {
-      console.error('TTS error:', error)
-      setIsSpeaking(false)
-      onEnd?.();
+    // Load voices immediately
+    loadVoices()
+    
+    // Voices may load asynchronously
+    window.speechSynthesis.onvoiceschanged = loadVoices
+    
+    return () => {
+      window.speechSynthesis.onvoiceschanged = null
     }
   }, [])
 
-  const stopSpeaking = useCallback(() => {
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
+  const speak = (
+    text: string,
+    onEnd: () => void,
+    onError: (e: SpeechSynthesisErrorEvent) => void = (e) => console.error("TTS Error", e),
+    rate = 1.0,
+    pitch = 1.0
+  ) => {
+    if (isLoading || voices.length === 0) {
+      console.warn("TTS is not ready or no voices are available.")
+      onError(new SpeechSynthesisErrorEvent('no-voice', { error: 'No voices loaded' }));
+      return
     }
-    if (utteranceRef.current) {
-      utteranceRef.current.onend = null; // Prevent onEnd from firing
-    }
-    setIsSpeaking(false)
-  }, [])
 
-  return {
-    isSpeaking,
-    speak,
-    stopSpeaking
+    // Stop any currently speaking utterance
+    window.speechSynthesis.cancel()
+    
+    // FIXED: Clean the text by removing all emojis before speaking
+    const cleanText = text.replace(emojiRegex, '');
+
+    const utterance = new SpeechSynthesisUtterance(cleanText)
+    
+    // Select the best available voice
+    const bestVoice = voices.find(v => v.name === 'Google US English') ||
+                      voices.find(v => v.lang === 'en-US') ||
+                      voices.find(v => v.lang.startsWith('en')) ||
+                      voices[0]
+                      
+    if (!bestVoice) {
+      console.error("No suitable voice found.");
+      onError(new SpeechSynthesisErrorEvent('no-voice', { error: 'No suitable voice' }));
+      return;
+    }
+
+    utterance.voice = bestVoice
+    utterance.lang = bestVoice.lang
+    utterance.rate = rate
+    utterance.pitch = pitch
+    utterance.onerror = onError
+    utterance.onend = onEnd
+    
+    window.speechSynthesis.speak(utterance)
   }
+
+  const stopSpeaking = () => {
+    window.speechSynthesis.cancel()
+  }
+
+  return { speak, stopSpeaking, isLoading }
 }

@@ -7,40 +7,35 @@ import { useAuth } from '@/hooks/useAuth'
 import { useSound } from '@/contexts/SoundContext'
 import { useRouter, usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client' 
+import { useSidebar } from '@/contexts/SidebarContext'
 
-interface SidebarProps {
-  isOpen: boolean
-  onClose: () => void
-}
-
-export default function Sidebar({ isOpen, onClose }: SidebarProps) {
+export default function Sidebar() {
   const { theme, resolvedTheme, setTheme } = useTheme()
   const { user } = useAuth()
   const router = useRouter()
   const pathname = usePathname() 
+  
+  const { isSidebarOpen, toggleSidebar } = useSidebar()
 
   const { 
     soundOptions, 
     playSound, 
     selectedSound,
-    isLoading: isLoadingSounds,
     initAudio,
-    isAudioUnlocked
+    isAudioUnlocked,
+    soundsLoading
   } = useSound()
 
   const [isSoundListOpen, setIsSoundListOpen] = useState(false)
-  
-  // FIXED: Real-time notification count state
   const [unreadCount, setUnreadCount] = useState(0)
 
-  // FIXED: Function to fetch unread count
   const fetchUnreadCount = async () => {
     if (!user) return;
     const { count, error } = await supabase
       .from('notifications')
       .select('id', { count: 'exact', head: true })
       .eq('is_read', false)
-      .eq('user_id', user.id); // Ensure we only get this user's count
+      .eq('user_id', user.id); 
       
     if (error) {
       console.error('Error fetching unread count:', error);
@@ -49,26 +44,19 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     }
   };
 
-  // FIXED: Load count on mount and listen for changes
   useEffect(() => {
     if (!user) return;
-
-    // Fetch initial count
     fetchUnreadCount();
-
-    // Listen for new notifications in real-time
     const channel = supabase
       .channel('public:notifications')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` },
         (payload) => {
-          // Refetch the count whenever a notification is added or changed
           fetchUnreadCount();
         }
       )
       .subscribe();
-
     return () => {
       supabase.removeChannel(channel);
     };
@@ -76,10 +64,10 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
 
   useEffect(() => {
-    if (!isOpen) {
+    if (!isSidebarOpen) {
       setIsSoundListOpen(false)
     }
-  }, [isOpen])
+  }, [isSidebarOpen])
 
   const handleSoundAccordionClick = () => {
     if (!isAudioUnlocked) {
@@ -90,7 +78,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
   const handleLinkClick = (path: string) => {
     router.push(path)
-    onClose()
+    toggleSidebar()
   }
   
   const isDark = resolvedTheme === 'dark'
@@ -109,6 +97,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     gap: '8px',
     width: '100%',
     transition: 'all 0.1s ease',
+    opacity: soundsLoading[soundId] ? 0.6 : 1,
   })
 
   const navItemStyle = (path: string) => ({
@@ -125,27 +114,28 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     position: 'relative' as const
   })
   
-  const soundLoadingStyle = {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '8px',
-    padding: '12px',
-    fontSize: 'var(--font-sm)',
-    color: 'var(--text-tertiary)'
-  }
+  // FIXED: Restored the spinner's JSX
+  const inlineSpinner = (
+    <div className="animate-spin" style={{
+      width: '16px',
+      height: '16px',
+      border: '2px solid var(--border-medium)',
+      borderTopColor: 'var(--accent-primary)',
+      borderRadius: '50%'
+    }} />
+  )
 
   return (
     <>
       <div 
-        className={`sidebar-backdrop ${isOpen ? 'open' : ''}`}
-        onClick={onClose}
+        className={`sidebar-backdrop ${isSidebarOpen ? 'open' : ''}`}
+        onClick={toggleSidebar}
       />
       
-      <div className={`sidebar ${isOpen ? 'open' : ''}`}>
+      <div className={`sidebar ${isSidebarOpen ? 'open' : ''}`}>
         <div className="sidebar-header">
           <span className="sidebar-title">FocusFlow</span>
-          <button onClick={onClose} className="sidebar-close-button">×</button>
+          <button onClick={toggleSidebar} className="sidebar-close-button">×</button>
         </div>
         
         <div className="sidebar-content">
@@ -170,7 +160,6 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
               👤 Profile
             </button>
             
-            {/* FIXED: Real-time notification badge */}
             <button style={navItemStyle('/notifications')} onClick={() => handleLinkClick('/notifications')}>
               🔔 Notifications
               {unreadCount > 0 && (
@@ -215,38 +204,28 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             
             {isSoundListOpen && (
               <div className="sidebar-sound-list">
-                {isLoadingSounds ? (
-                  <div style={soundLoadingStyle}>
-                    <div className="animate-spin" style={{
-                      width: '16px',
-                      height: '16px',
-                      border: '2px solid var(--border-medium)',
-                      borderTopColor: 'var(--accent-primary)',
-                      borderRadius: '50%'
-                    }} />
-                    <span>Loading sounds...</span>
-                  </div>
-                ) : (
-                  soundOptions.map(sound => (
-                    <button
-                      key={sound.id}
-                      onClick={() => playSound(sound)}
-                      style={soundButtonStyle(sound.id)}
-                    >
-                      <span style={{ fontSize: '1.2rem' }}>{sound.emoji}</span>
-                      <span style={{ flex: 1, textAlign: 'left' }}>{sound.name}</span>
-                      {selectedSound === sound.id && (
-                        <span style={{ 
-                          fontSize: '12px',
-                          color: theme === 'dark' ? 'rgba(255, 255, 255, 0.8)' : 'inherit',
-                          animation: 'pulse 1s infinite'
-                        }}>
-                          ●
-                        </span>
-                      )}
-                    </button>
-                  ))
-                )}
+                {soundOptions.map(sound => (
+                  <button
+                    key={sound.id}
+                    onClick={() => playSound(sound)}
+                    style={soundButtonStyle(sound.id)}
+                    disabled={soundsLoading[sound.id]}
+                  >
+                    {soundsLoading[sound.id] ? inlineSpinner : (
+                      <span style={{ fontSize: '1.2rem', width: '16px' }}>{sound.emoji}</span>
+                    )}
+                    <span style={{ flex: 1, textAlign: 'left' }}>{sound.name}</span>
+                    {selectedSound === sound.id && (
+                      <span style={{ 
+                        fontSize: '12px',
+                        color: theme === 'dark' ? 'rgba(255, 255, 255, 0.8)' : 'inherit',
+                        animation: 'pulse 1s infinite'
+                      }}>
+                        ●
+                      </span>
+                    )}
+                  </button>
+                ))}
               </div>
             )}
           </nav>

@@ -1,4 +1,4 @@
-/* app/globals.css - (REPLACE THE ENTIRE FILE) */
+/* app/globals.css - Scroll Fix */
 
 /* ===== RESET & BASE STYLES ===== */
 *, *::before, *::after {
@@ -7,7 +7,7 @@
   padding: 0;
 }
 
-/* ===== FLUID TYPOGRAPHY ===== */
+/* ===== FLUID TYPOGRAPHY (SCALES WITH SCREEN) ===== */
 :root {
   font-size: 16px; 
   --font-xs: clamp(0.75rem, 0.5vw + 0.65rem, 0.875rem);
@@ -61,7 +61,6 @@
 
 html, body, #__next {
   width: 100%;
-  /* FIXED: Use min-height, not height, to prevent scroll issues */
   min-height: 100%; 
   height: auto;
 }
@@ -118,7 +117,7 @@ body {
 
 @media (min-width: 768px) {
   .mobile-header {
-    display: none; /* Hide mobile header on desktop */
+    display: none;
   }
 }
 
@@ -285,15 +284,15 @@ body {
   padding: 16px;
   padding-left: max(16px, env(safe-area-inset-left));
   padding-right: max(16px, env(safe-area-inset-right));
+  /* This padding ensures content can scroll above the 80px navbar */
   padding-bottom: 120px; 
-  /* FIXED: Set a min-height for pages that are shorter than the viewport */
-  min-height: calc(100vh - 140px); /* 100vh minus header and navbar */
+  /* FIXED: Removed min-height from here */
 }
 @media (min-width: 768px) {
   .page-container {
     padding: 32px;
     padding-bottom: 32px;
-    min-height: calc(100vh - 64px); /* 100vh minus desktop header */
+    /* FIXED: Removed min-height from here */
   }
 }
 
@@ -396,7 +395,6 @@ body {
 
 /* ===== DESKTOP NAVBAR OVERRIDE ===== */
 @media (min-width: 768px) {
-  /* On desktop, hide the new mobile-first navbar */
   .navbar {
     display: none;
   }
@@ -406,7 +404,7 @@ body {
   }
   .sidebar {
     transform: translateX(0);
-    position: sticky; 
+    position: sticky;
     height: 100vh;
     box-shadow: none;
     border-right: 1px solid var(--border-light);
@@ -422,7 +420,6 @@ body {
     padding-bottom: 16px;
   }
 
-  /* Adjust main page content to make room for desktop sidebar */
   body {
     display: flex;
   }
@@ -431,8 +428,7 @@ body {
     padding: 32px;
     padding-bottom: 32px;
     height: 100vh;
-    overflow-y: auto; /* Allow page content to scroll */
-    min-height: 100vh; /* Ensure it fills viewport */
+    overflow-y: auto;
   }
 }
 
@@ -668,8 +664,6 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   color: white;
 }
 
-/* app/globals.css (ADD THIS AT THE END) */
-
 /* ===== TOAST NOTIFICATION STYLES ===== */
 @keyframes toast-in {
   from {
@@ -698,7 +692,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   top: 20px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 2000; /* Above everything */
+  z-index: 2000;
   padding: 12px 20px;
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
@@ -714,21 +708,19 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 }
 
 .toast-container.success {
-  background-color: #10b981; /* Green */
+  background-color: #10b981;
   color: white;
 }
 
 .toast-container.error {
-  background-color: #ef4444; /* Red */
+  background-color: #ef4444;
   color: white;
 }
 
 .toast-container.info {
-  background-color: #3b82f6; /* Blue */
+  background-color: #3b82f6;
   color: white;
 }
-
-/* app/globals.css (ADD THIS AT THE END) */
 
 /* ===== NOTIFICATION BADGE STYLES ===== */
 .sidebar-badge {
@@ -746,9 +738,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   line-height: 1;
 }
 
-/* app/globals.css (ADD THIS AT THE END) */
-
-/* ===== NEW: PROGRESS BAR STYLES ===== */
+/* ===== PROGRESS BAR STYLES ===== */
 .progress-bar-container {
   width: 100%;
   height: 10px;
@@ -762,4 +752,27 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   background-color: var(--accent-primary);
   border-radius: var(--radius-sm);
   transition: width 0.4s ease;
+}
+
+/* app/globals.css (ADD THIS AT THE END) */
+
+/* ===== CHAT PAGE KEYBOARD FIX ===== */
+.chat-page-container {
+  /* Use 100dvh (dynamic viewport height) to respect mobile URL bars */
+  height: 100dvh; 
+  display: flex;
+  flex-direction: column;
+}
+
+/* On desktop, the sidebar breaks this. Use 100vh instead */
+@media (min-width: 768px) {
+  .chat-page-container {
+    height: 100vh;
+  }
+}
+
+.chat-messages-wrapper {
+  flex: 1; /* This is what makes the chat area grow */
+  overflow-y: auto; /* This is where the scrolling happens */
+  padding-bottom: 200px; /* Space for input and navbar */
 }

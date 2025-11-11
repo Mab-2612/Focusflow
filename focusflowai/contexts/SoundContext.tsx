@@ -4,21 +4,45 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react'
 import { Howl, Howler } from 'howler'
 
+// This interface is for the UI
 interface Sound {
   id: string
   name: string
   emoji: string
-  freesoundId: number
 }
+
+// This internal interface includes the local file path
+interface SoundSource extends Sound {
+  file: string
+}
+
+// FIXED: Define sounds with their local file paths
+const localSoundOptions: SoundSource[] = [
+  { id: 'rain', name: 'Rain', emoji: '🌧️', file: '/audio/rain.mp3' },
+  { id: 'waves', name: 'Waves', emoji: '🌊', file: '/audio/waves.mp3' },
+  { id: 'forest', name: 'Forest', emoji: '🌲', file: '/audio/forest.mp3' },
+  { id: 'fire', name: 'Fire', emoji: '🔥', file: '/audio/fire.mp3' },
+  { id: 'thunder', name: 'Thunder', emoji: '⛈️', file: '/audio/thunder.mp3' },
+  { id: 'stream', name: 'Stream', emoji: '💧', file: '/audio/stream.mp3' },
+  { id: 'birds', name: 'Birds', emoji: '🐦', file: '/audio/birds.mp3' },
+  { id: 'wind', name: 'Wind', emoji: '💨', file: '/audio/wind.mp3' }
+];
+
+// Expose only the UI-safe data
+const soundOptions: Sound[] = localSoundOptions.map(s => ({
+  id: s.id,
+  name: s.name,
+  emoji: s.emoji
+}));
 
 interface SoundContextType {
   selectedSound: string | null
-  playSound: (sound: Sound, volume?: number) => void
+  playSound: (sound: Sound) => void
   stopSound: () => void
   soundOptions: Sound[]
-  initAudio: () => void // Expose initAudio
-  isLoading: boolean // Expose loading state
-  isAudioUnlocked: boolean // Expose unlock state
+  initAudio: () => void
+  isAudioUnlocked: boolean
+  soundsLoading: { [id: string]: boolean }
 }
 
 const SoundContext = createContext<SoundContextType | undefined>(undefined)
@@ -26,35 +50,30 @@ const SoundContext = createContext<SoundContextType | undefined>(undefined)
 export const SoundProvider = ({ children }: { children: React.ReactNode }) => {
   const [selectedSound, setSelectedSound] = useState<string | null>(null)
   const soundsRef = useRef<{ [key: string]: Howl }>({})
-  const [preloaded, setPreloaded] = useState(false)
   const [isAudioUnlocked, setIsAudioUnlocked] = useState(false)
-  const [isLoading, setIsLoading] = useState(false) // This now controls the spinner
-
-  const soundOptions: Sound[] = [
-    { id: 'rain', name: 'Rain', emoji: '🌧️', freesoundId: 826231 },
-    { id: 'waves', name: 'Waves', emoji: '🌊', freesoundId: 824876 },
-    { id: 'forest', name: 'Forest', emoji: '🌲', freesoundId: 823247 },
-    { id: 'fire', name: 'Fire', emoji: '🔥', freesoundId: 819492 },
-    { id: 'thunder', name: 'Thunder', emoji: '⛈️', freesoundId: 823513 },
-    { id: 'stream', name: 'Stream', emoji: '💧', freesoundId: 825932 },
-    { id: 'birds', name: 'Birds', emoji: '🐦', freesoundId: 825281 },
-    { id: 'wind', name: 'Wind', emoji: '💨', freesoundId: 825411 }
-  ]
-
+  const [preloaded, setPreloaded] = useState(false) // To prevent re-loading
+  
+  // Set all sounds to loading initially
+  const [soundsLoading, setSoundsLoading] = useState<{ [id: string]: boolean }>(
+    localSoundOptions.reduce((acc, sound) => {
+      acc[sound.id] = true;
+      return acc;
+    }, {} as { [id: string]: boolean })
+  )
+  
+  // FIXED: This now runs ONLY on your first click
   const initAudio = async () => {
-    // Prevent running if already unlocked or if in the middle of loading
-    if (isAudioUnlocked || isLoading || typeof window === 'undefined') return;
+    if (isAudioUnlocked || typeof window === 'undefined') return;
 
     console.log("Attempting to unlock audio context...");
-    setIsLoading(true); // FIXED: Set loading to TRUE at the very beginning
+    setIsAudioUnlocked(true); // Set true immediately
 
     const silentSound = new Howl({
       src: ['data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA'],
       volume: 0,
       onplay: async () => {
         console.log('AudioContext unlocked successfully.');
-        setIsAudioUnlocked(true);
-
+        
         try {
           const audioContext = Howler.ctx;
           if (audioContext && Howler.masterGain) {
@@ -65,95 +84,86 @@ export const SoundProvider = ({ children }: { children: React.ReactNode }) => {
             compressor.attack.setValueAtTime(0.003, audioContext.currentTime);
             compressor.release.setValueAtTime(0.25, audioContext.currentTime);
             
+            // FIXED: GainNode for LOUDNESS (2.0 = 200% volume)
+            const gainNode = audioContext.createGain();
+            gainNode.gain.setValueAtTime(3.0, audioContext.currentTime);
+            
+            // Chain: Master -> Compressor -> Gain -> Speakers
             Howler.masterGain.disconnect();
             Howler.masterGain.connect(compressor);
-            compressor.connect(audioContext.destination);
-            console.log('Audio boost compressor attached.');
+            compressor.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            console.log('Audio boost compressor and 2x gain node attached.');
           }
         } catch (e) {
-          console.error('Failed to apply audio boost:', e);
+          console.error('Failed to apply audio effects:', e);
         }
         
-        // Now, preload sounds and wait for them to finish
-        await preloadSounds(); 
-        setIsLoading(false); // FIXED: Set loading to FALSE only after preloading is done
+        // NOW that audio is unlocked, start preloading
+        preloadSounds();
       },
-      onplayerror: async (id, err) => {
+      onplayerror: (id, err) => {
         console.error('Silent sound play error:', err);
-        if (!isAudioUnlocked) {
-           setIsAudioUnlocked(true);
-           await preloadSounds();
+         if (!preloaded) {
+          preloadSounds(); // Still try to load sounds
         }
-        setIsLoading(false); // Also set loading to false on error
       }
     });
 
     silentSound.play();
   }
 
-
-  const preloadSounds = async () => {
-    // Removed !isAudioUnlocked check because initAudio gatekeeps this
-    if (preloaded) return 
-
-    const FREESOUND_API_KEY = process.env.NEXT_PUBLIC_FREESOUND_API_KEY
-    const FREESOUND_BASE_URL = 'https://freesound.org/apiv2'
-
-    if (!FREESOUND_API_KEY) {
-      console.error(
-        'Calming Sounds Error: NEXT_PUBLIC_FREESOUND_API_KEY is not set.'
-      )
-      setPreloaded(true) 
-      return
-    }
-
-    console.log('Preloading sounds...');
+  // FIXED: This function now only runs once, after initAudio
+  const preloadSounds = () => {
+    if (preloaded) return; // Only run once
     setPreloaded(true);
     
-    const preloadPromises = soundOptions.map(async (sound) => {
-      try {
-        const response = await fetch(
-          `${FREESOUND_BASE_URL}/sounds/${sound.freesoundId}/?fields=previews&token=${FREESOUND_API_KEY}`
-        );
-        
-        if (response.ok) {
-          const soundData = await response.json();
-          const previewUrl = soundData.previews['preview-hq-mp3'];
-
-          soundsRef.current[sound.id] = new Howl({
-            src: [previewUrl],
-            loop: true,
-            volume: 0.9,
-            preload: true,
-            onloaderror: (id, err) => {
-              console.error(`Howler error loading ${sound.name}:`, err);
-            },
-            onplayerror: (id, err) => {
-              console.error(`Howler error playing ${sound.name}:`, err);
-            }
-          });
-        } else {
-          console.error(`Freesound API error for ${sound.name}: ${response.status} ${response.statusText}`);
+    console.log('Preloading all local sounds...');
+    
+    localSoundOptions.forEach(sound => {
+      soundsRef.current[sound.id] = new Howl({
+        src: [sound.file],
+        loop: true,
+        volume: 0.9,
+        preload: true,
+        onload: () => {
+          console.log(`Sound loaded: ${sound.name}`);
+          setSoundsLoading(prev => ({ ...prev, [sound.id]: false }));
+        },
+        onloaderror: (id, err) => {
+          console.error(`Howler error loading ${sound.name}:`, err);
+          setSoundsLoading(prev => ({ ...prev, [sound.id]: false }));
         }
-      } catch (error) {
-        console.error(`Error preloading ${sound.name}:`, error);
-      }
+      });
     });
-    
-    await Promise.all(preloadPromises);
-    
-    console.log('Sounds preloaded.');
+    console.log('All local sound preloading tasks dispatched.');
   }
 
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      Object.values(soundsRef.current).forEach(sound => {
+        if (sound) {
+          sound.stop()
+          sound.unload()
+        }
+      })
+    }
+  }, [])
+
   const playSound = (sound: Sound, volume: number = 0.9) => {
-    // This function is now safe because the loading spinner in the sidebar
-    // will prevent this from being called until isLoading is false.
     if (!isAudioUnlocked) {
-      console.warn('Audio not unlocked. This should not happen.');
-      initAudio(); // Failsafe
+      console.warn('Audio not unlocked. Initializing...');
+      initAudio();
       return; 
     }
     
+    if (soundsLoading[sound.id]) {
+      console.log(`${sound.name} is still loading, please wait.`);
+      return;
+    }
+
     if (selectedSound === sound.id) {
       stopSound()
       return
@@ -180,17 +190,6 @@ export const SoundProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }
 
-  useEffect(() => {
-    return () => {
-      Object.values(soundsRef.current).forEach(sound => {
-        if (sound) {
-          sound.stop()
-          sound.unload()
-        }
-      })
-    }
-  }, [])
-
   return (
     <SoundContext.Provider value={{
       selectedSound,
@@ -198,9 +197,8 @@ export const SoundProvider = ({ children }: { children: React.ReactNode }) => {
       stopSound,
       soundOptions,
       initAudio,
-      preloadSounds, // Exposing this, though it's called internally
-      isLoading,
-      isAudioUnlocked
+      isAudioUnlocked,
+      soundsLoading
     }}>
       {children}
     </SoundContext.Provider>

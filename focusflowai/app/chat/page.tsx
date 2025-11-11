@@ -5,142 +5,186 @@ import { useState, useEffect, useRef } from 'react'
 import { useTheme } from '@/components/ThemeContext'
 import Navbar from '@/components/Navbar'
 import { useGoogleTTS } from '@/hooks/useGoogleTTS'
-import { useVoiceAssistant } from '@/hooks/useVoiceAssistant'
 import { useAuth } from '@/hooks/useAuth'
+import { useSidebar } from '@/contexts/SidebarContext'
+import { supabase } from '@/lib/supabase/client'
+import { type User } from '@supabase/supabase-js'
 
 interface Message {
   id: string
-  type: 'user' | 'assistant'
+  role: 'user' | 'assistant' // Changed from 'type' to 'role'
   content: string
   timestamp: Date
 }
 
-const MAX_MESSAGES = 50; 
+const MAX_MESSAGES = 100; // Updated limit
 
 export default function ChatPage() {
   const { theme } = useTheme()
   const { user } = useAuth()
+  const { toggleSidebar } = useSidebar()
   
-  // --- STATE ---
   const [messages, setMessages] = useState<Message[]>([])
   const [inputText, setInputText] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
   const [isTtsEnabled, setIsTtsEnabled] = useState(true) 
-  const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [showClearConfirm, setShowClearConfirm] = useState(false)
+  const [isLoadingHistory, setIsLoadingHistory] = useState(true)
 
-  // --- REFS ---
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null); 
 
-  // --- HOOKS ---
   const { speak, stopSpeaking } = useGoogleTTS()
-  const { processVoiceCommand } = useVoiceAssistant() // FIXED: Removed underscore
   
-  const CHAT_HISTORY_KEY = user ? `chatHistory_${user.id}` : null;
+  // --- DATA FETCHING & REALTIME ---
 
-  // Load chat history from sessionStorage
+  // Fetch initial chat history from database
+  const fetchHistory = async (currentUser: User) => {
+    setIsLoadingHistory(true);
+    const { data, error } = await supabase
+      .from('chat_messages')
+      .select('*')
+      .eq('user_id', currentUser.id)
+      .order('created_at', { ascending: false })
+      .limit(MAX_MESSAGES); // Get the 100 most recent
+
+    if (error) {
+      console.error('Error fetching chat history:', error);
+    } else if (data) {
+      // Map to local state format and reverse to show oldest first
+      const formattedMessages = data.map(msg => ({
+        id: msg.id,
+        role: msg.role as 'user' | 'assistant',
+        content: msg.content,
+        timestamp: new Date(msg.created_at)
+      })).reverse(); // Reverse to get chronological order
+      setMessages(formattedMessages);
+    }
+    setIsLoadingHistory(false);
+  };
+
+  // Load history on user load
   useEffect(() => {
-    if (CHAT_HISTORY_KEY) {
-      const storedHistory = sessionStorage.getItem(CHAT_HISTORY_KEY);
-      if (storedHistory) {
-        const parsedHistory = JSON.parse(storedHistory).map((msg: Message) => ({
-          ...msg,
-          timestamp: new Date(msg.timestamp) 
-        }));
-        setMessages(parsedHistory);
-      } else {
-        setMessages([]);
-      }
+    if (user) {
+      fetchHistory(user);
     } else {
-      setMessages([]);
+      setMessages([]); // Clear messages if no user
+      setIsLoadingHistory(false);
     }
-  }, [CHAT_HISTORY_KEY]);
+  }, [user]);
 
-  // Save chat history to sessionStorage
+  // Real-time subscription for cross-device sync
   useEffect(() => {
-    if (CHAT_HISTORY_KEY) {
-      if (messages.length > 0) {
-        sessionStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(messages));
-      } else {
-        sessionStorage.removeItem(CHAT_HISTORY_KEY);
-      }
-    }
-  }, [messages, CHAT_HISTORY_KEY]);
+    if (!user) return;
 
-  // Scroll to bottom
+    const channel = supabase
+      .channel('public:chat_messages')
+      .on(
+        'postgres_changes',
+        { 
+          event: 'INSERT', 
+          schema: 'public', 
+          table: 'chat_messages', 
+          filter: `user_id=eq.${user.id}` 
+        },
+        (payload) => {
+          const newMessage = payload.new as any;
+          
+          // Add the new message to state, but check for duplicates
+          setMessages(prev => {
+            // Check if message ID already exists
+            if (prev.find(msg => msg.id === newMessage.id)) {
+              return prev;
+            }
+            // Add the new message
+            return [
+              ...prev,
+              {
+                id: newMessage.id,
+                role: newMessage.role,
+                content: newMessage.content,
+                timestamp: new Date(newMessage.created_at)
+              }
+            ].slice(-MAX_MESSAGES); // Enforce max length
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
+
+
+  // Scroll to bottom when new messages are added
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+  }, [messages]);
   
-  // Auto-focus input on page load
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
-  
-  // Re-focus input after assistant finishes replying
+  // Auto-focus input
   useEffect(() => {
     if (!isProcessing) {
-      const timer = setTimeout(() => {
-        inputRef.current?.focus();
-      }, 100); // Small delay to ensure UI is ready
-      return () => clearTimeout(timer);
+      inputRef.current?.focus();
     }
   }, [isProcessing]);
 
 
   // --- HANDLERS ---
-  const addMessage = (message: Message) => {
-    setMessages(prev => {
-      const newMessages = [...prev, message];
-      if (newMessages.length > MAX_MESSAGES) {
-        return newMessages.slice(newMessages.length - MAX_MESSAGES);
-      }
-      return newMessages;
-    });
-  };
 
   const handleUserMessage = async (content: string) => {
     if (!content.trim() || isProcessing || !user) return
 
+    setInputText('')
+    setIsProcessing(true)
+    
+    // Optimistically add user message to UI
+    const tempId = `temp_${Date.now()}`
     const userMessage: Message = {
-      id: Date.now().toString(),
-      type: 'user',
+      id: tempId,
+      role: 'user',
       content: content,
       timestamp: new Date()
     }
-    
-    addMessage(userMessage);
-    setInputText('')
-    setIsProcessing(true)
-
-    // Re-focus input immediately after send for mobile keyboard
-    inputRef.current?.focus();
+    setMessages(prev => [...prev, userMessage].slice(-MAX_MESSAGES));
 
     try {
-      const response = await processVoiceCommand(content)
+      // Send to API route (which saves both user & assistant messages)
+      const response = await fetch('/api/voice-command', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: content, user_id: user.id })
+      });
       
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        type: 'assistant',
-        content: response,
-        timestamp: new Date()
+      if (!response.ok) {
+        throw new Error('API request failed');
       }
       
-      addMessage(assistantMessage); 
+      const { response: assistantResponse } = await response.json();
       
+      // Speak the response if TTS is enabled
       if (isTtsEnabled) {
-        await speak(response, () => {})
+        await speak(assistantResponse, () => {})
       }
+      
+      // Remove the optimistic message.
+      // The realtime subscription will add *both* the real user message
+      // and the assistant message from the database.
+      setMessages(prev => prev.filter(msg => msg.id !== tempId));
 
     } catch (error) {
       console.error('Error processing message:', error)
+      // Remove optimistic message on failure
+      setMessages(prev => prev.filter(msg => msg.id !== tempId));
+      
+      // Show an error message
       const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        type: 'assistant',
+        id: `err_${Date.now()}`,
+        role: 'assistant',
         content: "Sorry, I encountered an error. Please try again.",
         timestamp: new Date()
       }
-      addMessage(errorMessage);
+      setMessages(prev => [...prev, errorMessage].slice(-MAX_MESSAGES));
     } finally {
       setIsProcessing(false)
     }
@@ -162,19 +206,31 @@ export default function ChatPage() {
     setShowClearConfirm(true);
   }
   
-  const handleConfirmClear = () => {
+  // Updated to delete from Supabase
+  const handleConfirmClear = async () => {
+    if (!user) return;
+    
+    // Optimistically clear UI
     setMessages([])
-    if (CHAT_HISTORY_KEY) {
-      sessionStorage.removeItem(CHAT_HISTORY_KEY);
-    }
-    stopSpeaking()
     setShowClearConfirm(false);
+    stopSpeaking()
+
+    // Call database deletion
+    const { error } = await supabase
+      .from('chat_messages')
+      .delete()
+      .eq('user_id', user.id);
+      
+    if (error) {
+      console.error('Error clearing chat history:', error);
+      // If delete fails, reload the history
+      fetchHistory(user);
+    }
   }
 
   // --- STYLES ---
   const containerStyle = {
-    minHeight: '100vh',
-    backgroundColor: 'var(--bg-primary)', 
+    // This class handles the 100dvh height
   }
 
   const headerStyle = {
@@ -202,11 +258,15 @@ export default function ChatPage() {
     margin: '0 auto',
     padding: '0 20px',
     width: '100%',
+    flex: 1, // Let this grow
+    display: 'flex',
+    flexDirection: 'column' as const,
+    overflow: 'hidden' // Hide overflow
   }
 
   const messagesStyle = {
+    // This class handles scrolling
     paddingTop: '20px',
-    paddingBottom: '200px', // Space for both input and navbar
     display: 'flex',
     flexDirection: 'column' as const,
     gap: '12px'
@@ -214,27 +274,27 @@ export default function ChatPage() {
 
   const floatingInputContainerStyle = {
     position: 'fixed' as const,
-    bottom: '80px', // Sits just above the 80px navbar
+    bottom: '80px', // Sits above the 80px navbar
     left: '0',
     right: '0',
-    padding: '16px 24px',
-    paddingBottom: 'max(16px, env(safe-area-inset-bottom))',
+    padding: '16px 24px 8px 24px', // Less bottom padding
+    paddingBottom: 'max(8px, env(safe-area-inset-bottom))',
     backgroundColor: 'var(--bg-primary)',
     background: `linear-gradient(to top, var(--bg-primary) 70%, transparent 100%)`,
+    zIndex: 999 // Below navbar, above content
   }
 
   const textInputWrapperStyle = {
-    flex: 1,
     display: 'flex',
     alignItems: 'center',
     border: `1px solid var(--border-light)`,
     borderRadius: '24px', 
-    backgroundColor: 'var(--bg-secondary)', 
+    backgroundColor: 'var(--bg-secondary)',
     paddingLeft: '16px',
     paddingRight: '6px',
     minHeight: '48px', 
     maxWidth: '800px',
-    margin: '0 auto', 
+    margin: '0 auto',
     boxShadow: 'var(--shadow-md)',
   }
   
@@ -255,8 +315,8 @@ export default function ChatPage() {
     border: 'none',
     borderRadius: '50%', 
     cursor: 'pointer',
-    width: '40px', 
-    height: '40px', 
+    width: '40px',
+    height: '40px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -281,6 +341,15 @@ export default function ChatPage() {
     flexShrink: 0 
   }
   
+  // FIXED: Style for sticky clear button
+  const clearChatContainerStyle = {
+    display: 'flex',
+    justifyContent: 'center',
+    paddingBottom: '8px',
+    maxWidth: '800px',
+    margin: '0 auto'
+  }
+
   const clearChatButtonStyle = {
     fontSize: '12px',
     fontWeight: '500',
@@ -289,15 +358,24 @@ export default function ChatPage() {
     padding: '4px 12px',
     border: `1px solid var(--border-light)`,
     borderRadius: '6px',
-    backgroundColor: 'var(--bg-tertiary)',
-    margin: '0 auto', 
-    display: 'block',
+    backgroundColor: 'var(--bg-tertiary)'
   }
 
   return (
-    <div style={containerStyle}>
-      {/* Header */}
-      <header style={headerStyle}>
+    // FIXED: Use className for layout
+    <div style={containerStyle} className="chat-page-container">
+      <header style={headerStyle} className="mobile-header">
+        
+        <button onClick={toggleSidebar} className="mobile-menu-button" title="Open menu">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="3" y1="12" x2="21" y2="12"></line>
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <line x1="3" y1="18" x2="21" y2="18"></line>
+          </svg>
+        </button>
+
+        <h1 style={titleStyle}>FocusFlow Chat</h1>
+        
         <button
           onClick={toggleTts}
           style={{
@@ -308,21 +386,24 @@ export default function ChatPage() {
         >
           {isTtsEnabled ? '🔊' : '🔇'}
         </button>
-
-        <h1 style={titleStyle}>FocusFlow Chat</h1>
-        
-        <div style={{ ...headerButtonStyle, visibility: 'hidden', pointerEvents: 'none' }} />
       </header>
 
       {/* Chat Container */}
       <div 
-        className="page-container"
         style={chatContainerStyle}
+        // FIXED: Remove className="page-container"
       >
         {/* Messages */}
-        <div style={messagesStyle} className="chat-messages">
+        <div style={messagesStyle} className="chat-messages-wrapper">
           
-          {messages.length === 0 && (
+          {(isLoadingHistory && messages.length === 0) && (
+            <div style={{ textAlign: 'center', color: 'var(--text-tertiary)', padding: '40px' }}>
+              <div className="animate-spin" style={{ fontSize: '48px', marginBottom: '16px' }}>⏳</div>
+              Loading chat history...
+            </div>
+          )}
+
+          {(!isLoadingHistory && messages.length === 0) && (
             <div style={{
               flex: 1,
               display: 'flex',
@@ -344,7 +425,7 @@ export default function ChatPage() {
           {messages.map((message) => (
             <div 
               key={message.id} 
-              className={`message-bubble ${message.type === 'user' ? 'message-user' : 'message-assistant'}`}
+              className={`message-bubble ${message.role === 'user' ? 'message-user' : 'message-assistant'}`}
             >
               <div>{message.content}</div>
               <div className="message-timestamp">
@@ -352,26 +433,24 @@ export default function ChatPage() {
               </div>
             </div>
           ))}
-
-          {/* Clear Chat Button (now inside message area) */}
-          {messages.length > 0 && (
-            <div style={{ paddingTop: '8px', paddingBottom: '8px' }}>
-              <button
-                onClick={clearChat}
-                style={clearChatButtonStyle}
-                title="Clear Chat"
-              >
-                Clear Conversation
-              </button>
-            </div>
-          )}
-
           <div ref={messagesEndRef} />
         </div>
       </div>
 
       {/* Floating Input Bar */}
       <div style={floatingInputContainerStyle}>
+        {/* FIXED: Added sticky clear button */}
+        {messages.length > 0 && (
+          <div style={clearChatContainerStyle}>
+            <button
+              onClick={clearChat}
+              style={clearChatButtonStyle}
+              title="Clear Chat"
+            >
+              Clear Conversation
+            </button>
+          </div>
+        )}
         <form onSubmit={handleTextSubmit}>
           <div style={textInputWrapperStyle}>
             <input

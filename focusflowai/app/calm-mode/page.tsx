@@ -35,12 +35,10 @@ export default function CalmModePage() {
     "I choose peace over stress and calm over chaos."
   ]
 
-  // Random affirmation on mount
   useEffect(() => {
     setCurrentAffirmation(affirmations[Math.floor(Math.random() * affirmations.length)])
   }, [])
 
-  // Preload breathing sounds
   useEffect(() => {
     const inSound = new Howl({
       src: ['/audio/breathe-in.mp3'],
@@ -62,7 +60,6 @@ export default function CalmModePage() {
     }
   }, [])
 
-  // Handle start/stop breathing
   const handleBreathingToggle = () => {
     if (isBreathing) {
       setIsBreathing(false)
@@ -89,7 +86,6 @@ export default function CalmModePage() {
     }
   }
 
-  // Breathing cycle
   useEffect(() => {
     let breathInterval: NodeJS.Timeout
 
@@ -111,13 +107,16 @@ export default function CalmModePage() {
   }, [isBreathing, breathInSound, breathOutSound])
 
   const containerStyle = {
-    // FIXED: Removed minHeight: '100vh'
     backgroundColor: theme === 'dark' ? '#111827' : '#f9fafb',
     display: 'flex',
     flexDirection: 'column' as const,
     alignItems: 'center',
-    justifyContent: 'flex-start',
-    transition: 'background-color 0.3s ease'
+    justifyContent: 'center', // FIXED
+    transition: 'background-color 0.3s ease',
+    // FIXED: Vertical centering styles
+    minHeight: 'calc(100vh - 140px)', // 80px nav + 60px header
+    paddingTop: '24px', // Add some top padding
+    paddingBottom: '24px' // Override the 120px from globals.css
   }
 
   const breathingCircleStyle = {
@@ -176,15 +175,6 @@ export default function CalmModePage() {
     border: theme === 'dark' ? '1px solid #374151' : '1px solid #e5e7eb'
   }
 
-  const titleStyle = {
-    fontSize: 'var(--font-xl)', // Use fluid typography
-    marginBottom: '32px',
-    color: theme === 'dark' ? '#f3f4f6' : '#1f2937',
-    fontWeight: '700',
-    textAlign: 'center' as const,
-    marginTop: '20px'
-  }
-
   const countdownStyle = {
     fontSize: '3rem',
     color: theme === 'dark' ? '#f3f4f6' : '#1f2937',
@@ -197,8 +187,6 @@ export default function CalmModePage() {
       className="page-container"
       style={containerStyle}
     >
-      <h1 style={titleStyle}>Calm Mode</h1>
-
       <div style={breathingCircleStyle}>
         {isStarting ? (
           <span style={countdownStyle}>{countdown}</span>

@@ -1,18 +1,17 @@
 // app/layout.tsx
-"use client"
+"use client" 
 
 import { ThemeProvider } from '@/components/ThemeContext'
 import { SoundProvider } from '@/contexts/SoundContext'
 import AppProvider from '@/components/AppProvider'
 import AuthGuard from '@/components/AuthGuard'
-// GlobalSoundControl is no longer needed here
+import GlobalSoundControl from '@/components/GlobalSoundControl'
 import GlobalElementsLoader from '@/components/GlobalElementsLoader'
-
-// Import new components
-import { useState } from 'react'
+import { SidebarProvider } from '@/contexts/SidebarContext' // Import new provider
 import MobileHeader from '@/components/MobileHeader'
 import Sidebar from '@/components/Sidebar'
-import GlobalStopButton from '@/components/GlobalStopButton' // Import new button
+import GlobalStopButton from '@/components/GlobalStopButton'
+import { usePathname } from 'next/navigation' // Import usePathname
 
 import './globals.css'
 
@@ -21,8 +20,9 @@ export default function RootLayout({
 }: {
   children: React.ReactNode
 }) {
-  // State to manage sidebar visibility
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  // State for sidebar is now in SidebarProvider
+  const pathname = usePathname()
+  const isChatPage = pathname === '/chat'
 
   return (
     <html lang="en">
@@ -36,22 +36,19 @@ export default function RootLayout({
           <SoundProvider>
             <AppProvider>
               <AuthGuard>
-                <GlobalElementsLoader />
-                
-                <MobileHeader onMenuClick={() => setIsSidebarOpen(true)} />
-                <Sidebar 
-                  isOpen={isSidebarOpen} 
-                  onClose={() => setIsSidebarOpen(false)} 
-                />
-                
-                {/* GlobalSoundControl is removed.
-                  GlobalThemeToggle is now inside the Sidebar.
-                */}
-                
-                {/* Add the new GlobalStopButton here */}
-                <GlobalStopButton />
-                
-                {children}
+                {/* Wrap everything in the new provider */}
+                <SidebarProvider>
+                  <GlobalElementsLoader />
+                  
+                  {/* FIXED: Only show MobileHeader if NOT on chat page */}
+                  {!isChatPage && <MobileHeader />}
+                  
+                  <Sidebar />
+                  <GlobalSoundControl />
+                  <GlobalStopButton />
+                  
+                  {children}
+                </SidebarProvider>
               </AuthGuard>
             </AppProvider>
           </SoundProvider>

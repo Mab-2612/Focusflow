@@ -1,60 +1,60 @@
 // app/api/voice-command/route.ts
+import { GoogleGenerativeAI } from '@google/generative-ai'
+import { createClient } from '@/lib/supabase/serverSSR'
 
-export const runtime = "nodejs"
+// Initialize the Gemini AI model
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '')
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" })
 
-import { NextRequest, NextResponse } from 'next/server';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+export async function POST(request: Request) {
+  const { message, user_id } = await request.json()
 
-export const dynamic = 'force-dynamic';
-
-const getGeminiResponse = async (genAI: any, prompt: string) => {
-  try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    return response.text();
-  } catch (error) {
-    console.error('Gemini API error:', error);
-    throw new Error('Failed to get response from AI');
+  if (!user_id || !message) {
+    return new Response(JSON.stringify({ error: 'Missing user_id or message' }), { status: 400 })
   }
-}
 
-export async function POST(request: NextRequest) {
+  const supabase = createClient()
+
   try {
-    const { command, userId } = await request.json();
+    // 1. Save the user's message to the database
+    const { error: userError } = await supabase
+      .from('chat_messages')
+      .insert({
+        user_id: user_id,
+        role: 'user',
+        content: message
+      })
 
-    if (!command || !userId) {
-      return NextResponse.json({ error: 'Missing command or userId' }, { status: 400 });
+    if (userError) {
+      console.error('Error saving user message:', userError)
+      return new Response(JSON.stringify({ error: userError.message }), { status: 500 })
     }
 
-    const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+    // 2. Get the response from Gemini
+    const chat = model.startChat()
+    const result = await chat.sendMessage(message)
+    const response = result.response
+    const text = response.text()
 
-    // Gracefully handle missing or empty API key by sending a specific, successful response
-    if (!GEMINI_API_KEY || GEMINI_API_KEY.trim() === '') {
-      console.warn('Gemini API key is not configured. AI features are disabled.');
-      return NextResponse.json({ 
-        response: "The advanced AI features are currently unavailable because an API key has not been configured. Basic commands like 'time' and 'date' will still work.",
-        success: true, // Send a success status so the client doesn't throw an error
-      });
+    // 3. Save the assistant's response to the database
+    const { error: assistantError } = await supabase
+      .from('chat_messages')
+      .insert({
+        user_id: user_id,
+        role: 'assistant',
+        content: text
+      })
+      
+    if (assistantError) {
+      console.error('Error saving assistant message:', assistantError)
+      // Note: We still return the response to the user even if saving fails
     }
 
-    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-    
-    const prompt = `You are a helpful and concise productivity assistant. The user said: "${command}". Respond helpfully. Do not use emojis or markdown.`;
-
-    const responseText = await getGeminiResponse(genAI, prompt);
-    
-    return NextResponse.json({ 
-      response: responseText.trim(),
-      success: true,
-    });
+    // 4. Return the response to the client for TTS
+    return new Response(JSON.stringify({ response: text }), { status: 200 })
 
   } catch (error) {
-    console.error('Voice command API error:', error);
-    return NextResponse.json({ 
-      response: "I'm experiencing some technical difficulties. Please try again.",
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error'
-    }, { status: 500 });
+    console.error('Error in voice-command route:', error)
+    return new Response(JSON.stringify({ error: 'Failed to process command' }), { status: 500 })
   }
 }
