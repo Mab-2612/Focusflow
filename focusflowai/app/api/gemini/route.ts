@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
     
     // FIXED: The 'contents' format was wrong
     const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash-exp', // Your preferred model
+      model: 'gemini-2.0-flash', // Your preferred model
       contents: [{ role: 'user', parts: [{ text: prompt }] }]
     });
     
