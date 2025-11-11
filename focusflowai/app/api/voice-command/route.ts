@@ -44,7 +44,7 @@ export async function POST(request: Request) {
     // FIXED: The 'contents' format was wrong. It must be a Content array.
     // Also, use your preferred model name
     const geminiPromise = ai.models.generateContent({
-      model: 'gemini-2.0-flash', 
+      model: 'gemini-1.5-flash-preview-09-2025', 
       contents: [
         { role: 'user', parts: [{ text: systemPrompt }] },
         { role: 'model', parts: [{ text: "Understood. I'll be aware of the user's time and date." }] },
