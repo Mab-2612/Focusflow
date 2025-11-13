@@ -931,3 +931,4 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   background-color: var(--bg-secondary); /* Darker pill */
   color: var(--text-tertiary);
 }
+
