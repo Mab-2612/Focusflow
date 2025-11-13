@@ -557,6 +557,7 @@ input:focus-visible + .toggle-slider {
   box-shadow: var(--shadow-sm);
   display: flex;
   flex-direction: column;
+  -webkit-tap-highlight-color: transparent;
 }
 .message-user {
   align-self: flex-end;
@@ -768,6 +769,20 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   overflow: hidden; 
 }
 
+.chat-page-container .mobile-header {
+  position: sticky;
+  top: 0;
+  z-index: 900;
+  flex-shrink: 0; /* Prevents it from shrinking */
+}
+
+.chat-messages-wrapper {
+  flex: 1; /* This makes the chat area grow */
+  overflow-y: auto; /* This is where the scrolling happens */
+  /* Remove page-container's 120px bottom padding */
+  padding-bottom: 24px; /* REMOVED !important */
+}
+
 .chat-messages-wrapper {
   flex: 1; /* This makes the chat area grow */
   overflow-y: auto; /* This is where the scrolling happens */
@@ -852,10 +867,44 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   align-items: center;
   justify-content: center;
   transition: background-color 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
 }
 .chat-action-icon:hover {
   background-color: var(--border-light);
   color: var(--text-primary);
+}
+
+.chat-scroll-down-button {
+  position: fixed;
+  bottom: 150px;
+  right: 24px;
+  width: 44px;
+  height: 44px;
+  background-color: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: 50%;
+  box-shadow: var(--shadow-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 900;
+  transition: all 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.chat-scroll-down-button:hover {
+  background-color: var(--border-light);
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .chat-scroll-down-button {
+  background-color: var(--bg-secondary);
+}
+[data-theme="dark"] .chat-scroll-down-button:hover {
+  background-color: var(--border-medium);
 }
 
 /* ===== CHAT DATE SEPARATOR ===== */

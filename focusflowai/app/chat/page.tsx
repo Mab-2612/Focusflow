@@ -1,8 +1,9 @@
 //app/chat/page.tsx
 "use client"
 
-import { Loader2, Frown, Sparkles, Copy, Edit } from 'lucide-react'
+// 1. Import React and the new icons
 import React, { useState, useEffect, useRef, useMemo } from 'react'
+import { Loader2, Frown, Sparkles, Copy, Edit } from 'lucide-react' // Added Copy, Edit
 import { useTheme } from '@/components/ThemeContext'
 import { useGoogleTTS } from '@/hooks/useGoogleTTS'
 import { useAuth } from '@/hooks/useAuth'
@@ -24,70 +25,11 @@ interface ApiHistoryItem {
   parts: { text: string }[]
 }
 
-// 2. REMOVED ContextMenu interface
+// Removed ContextMenu interface
 
 const MAX_MESSAGES = 100;
 
-// --- Helper Functions ---
-function parseMarkdown(text: string): string {
-  if (!text) return '';
-  
-  return text
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.*?)\*/g, '<em>$1</em>')
-    .replace(/^\* (.*$)/gm, '<ul><li>$1</li></ul>')
-    .replace(/<\/ul>\n<ul>/gm, '')
-}
-
-// 3. ADDED Helper function to escape regex characters
-function escapeRegExp(string: string): string {
-  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // $& means the whole matched string
-}
-
-// 4. ADDED Helper function to apply highlighting
-function getHighlightedText(text: string, highlight: string): string {
-  const parsedText = parseMarkdown(text); // First, parse markdown
-  
-  if (!highlight.trim()) {
-    return parsedText; // No search term, return plain parsed text
-  }
-
-  const regex = new RegExp(`(${escapeRegExp(highlight)})`, 'gi');
-  // Apply highlight *after* markdown parsing
-  return parsedText.replace(regex, (match) => `<mark class="search-highlight">${match}</mark>`);
-}
-
-function formatDateSeparator(date: Date): string {
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-
-  const messageDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-
-  if (messageDate.getTime() === today.getTime()) {
-    return 'Today';
-  }
-
-  if (messageDate.getTime() === yesterday.getTime()) {
-    return 'Yesterday';
-  }
-
-  // Check if in the same year
-  if (messageDate.getFullYear() === today.getFullYear()) {
-    return messageDate.toLocaleDateString('en-US', {
-      month: 'long',
-      day: 'numeric',
-    });
-  }
-
-  // Default for older dates
-  return messageDate.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
-}
-
+// --- Helper Functions (Moved inside component) ---
 export default function ChatPage() {
   const { theme } = useTheme()
   const { user } = useAuth()
@@ -98,32 +40,73 @@ export default function ChatPage() {
   const [inputText, setInputText] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
   
-  // State for TTS (reads from localStorage)
   const [isTtsEnabled, setIsTtsEnabled] = useState(true);
-
   const [showClearConfirm, setShowClearConfirm] = useState(false)
   const [isLoadingHistory, setIsLoadingHistory] = useState(true)
 
-  // --- NEW: Search State ---
   const [showSearch, setShowSearch] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   
-  // 5. REPLACED contextMenu state with selectedMessage state
+  // Replaced contextMenu with selectedMessage
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
+  
+  // State for the new scroll button
+  const [showScrollDown, setShowScrollDown] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null); 
   const tempMessageIdRef = useRef<string | null>(null);
-  // 6. ADDED Ref for click-outside
   const messagesContainerRef = useRef<HTMLDivElement>(null); 
 
   const { speak, stopSpeaking } = useGoogleTTS()
+  
+  // --- All Helper Functions now live inside the component ---
+  
+  function parseMarkdown(text: string): string {
+    if (!text) return '';
+    return text
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.*?)\*/g, '<em>$1</em>')
+      .replace(/^\* (.*$)/gm, '<ul><li>$1</li></ul>')
+      .replace(/<\/ul>\n<ul>/gm, '')
+  }
 
-  // --- NEW: Filtered Messages ---
-  // This memo filters messages based on the search term
+  function escapeRegExp(string: string): string {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  function getHighlightedText(text: string, highlight: string): string {
+    const parsedText = parseMarkdown(text);
+    if (!highlight.trim()) {
+      return parsedText;
+    }
+    const regex = new RegExp(`(${escapeRegExp(highlight)})`, 'gi');
+    return parsedText.replace(regex, (match) => `<mark class="search-highlight">${match}</mark>`);
+  }
+
+  function formatDateSeparator(date: Date): string {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+    const messageDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+    if (messageDate.getTime() === today.getTime()) return 'Today';
+    if (messageDate.getTime() === yesterday.getTime()) return 'Yesterday';
+    if (messageDate.getFullYear() === today.getFullYear()) {
+      return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+    }
+    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  }
+
+  const scrollToBottom = (behavior: 'smooth' | 'auto' = 'smooth') => {
+    messagesEndRef.current?.scrollIntoView({ behavior });
+  };
+  
+  // --- End Helper Functions ---
+
   const filteredMessages = useMemo(() => {
     if (!searchTerm.trim()) {
-      return messages; // Return all messages if search is empty
+      return messages;
     }
     return messages.filter(msg =>
       msg.content.toLowerCase().includes(searchTerm.toLowerCase())
@@ -171,7 +154,6 @@ export default function ChatPage() {
 
   useEffect(() => {
     if (!user) return;
-
     const channel = supabase
       .channel('public:chat_messages')
       .on(
@@ -185,9 +167,7 @@ export default function ChatPage() {
         (payload) => {
           const newMessage = payload.new as any;
           setMessages(prev => {
-            // (rest of the logic...)
             if (prev.find(msg => msg.id === newMessage.id)) return prev;
-
             if (newMessage.role === 'user' && tempMessageIdRef.current && prev.find(m => m.id === tempMessageIdRef.current)) {
               return prev.map(msg => 
                 msg.id === tempMessageIdRef.current
@@ -211,14 +191,12 @@ export default function ChatPage() {
               ].slice(-MAX_MESSAGES);
             }
           });
-          
           if (newMessage.role === 'user') {
             tempMessageIdRef.current = null;
           }
         }
       )
       .subscribe();
-
     return () => {
       supabase.removeChannel(channel);
     };
@@ -227,10 +205,11 @@ export default function ChatPage() {
   // Scroll to bottom *only* if not searching
   useEffect(() => {
     if (!searchTerm) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+      scrollToBottom('auto'); // Use 'auto' for instant scroll on new message
     }
-  }, [filteredMessages, searchTerm]); // Use filteredMessages here
+  }, [filteredMessages, searchTerm]);
   
+  // Focus input when processing stops
   useEffect(() => {
     if (!isProcessing) {
       const timer = setTimeout(() => {
@@ -240,23 +219,45 @@ export default function ChatPage() {
     }
   }, [isProcessing, messages]);
   
-  // 7. REPLACED contextMenu click listener with selectedMessage click listener
+  // Click outside to close icon toggles
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      // If click is outside the messages container, close the icons
       if (messagesContainerRef.current && !messagesContainerRef.current.contains(event.target as Node)) {
         setSelectedMessage(null);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []); // Empty dependency array
+  }, []);
+
+  // Scroll detection for "Scroll to Bottom" button
+  useEffect(() => {
+    const chatContainer = messagesContainerRef.current;
+    
+    const handleScroll = () => {
+      const container = messagesContainerRef.current;
+      if (!container) return;
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      const isScrolledUp = (scrollHeight - scrollTop - clientHeight) > 300;
+      setShowScrollDown(isScrolledUp);
+    };
+
+    if (!chatContainer) {
+      return; // Do nothing if the container isn't rendered
+    }
+
+    chatContainer.addEventListener('scroll', handleScroll);
+    
+    return () => {
+      if (chatContainer) {
+        chatContainer.removeEventListener('scroll', handleScroll);
+      }
+    };
+  }, [isLoadingHistory, messages]); // Re-attach listener when messages load/change
 
   // --- HANDLERS ---
   const addMessage = (message: Message) => {
-    setMessages(prev => {
-      return [...prev, message].slice(-MAX_MESSAGES);
-    });
+    setMessages(prev => [...prev, message].slice(-MAX_MESSAGES));
   };
 
   const handleUserMessage = async (content: string) => {
@@ -282,13 +283,12 @@ export default function ChatPage() {
 
     try {
       const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      
       const response = await fetch('/api/voice-command', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           message: content, 
-          history: historyForAPI, // Send history
+          history: historyForAPI,
           user_id: user.id,
           timezone: timezone
         })
@@ -300,7 +300,6 @@ export default function ChatPage() {
       }
       
       const assistantResponse = result.response;
-      
       const aiMessage: Message = {
         id: `ai_${Date.now()}`,
         role: 'assistant',
@@ -336,14 +335,12 @@ export default function ChatPage() {
     handleUserMessage(inputText.trim())
   }
   
-  // Updated TTS toggle to save to localStorage
   const toggleTts = () => {
     if (isTtsEnabled) {
       stopSpeaking()
     }
     const newState = !isTtsEnabled;
     setIsTtsEnabled(newState);
-    
     if (typeof window !== 'undefined') {
       localStorage.setItem('ttsEnabled', String(newState));
     }
@@ -368,9 +365,7 @@ export default function ChatPage() {
     }
   }
   
-  // 8. REMOVED handleShowMenu
-  
-  // 9. UPDATED handleCopy and handleEdit to accept content
+  // New handlers for icons
   const handleCopy = (content: string) => {
     navigator.clipboard.writeText(content);
     setSelectedMessage(null); // Close icons after action
@@ -393,10 +388,8 @@ export default function ChatPage() {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    flexShrink: 0,
-    position: 'sticky' as const,
-    top: 0,
-    zIndex: 900
+    flexShrink: 0
+    // Removed sticky positioning, will be handled by CSS
   }
   const titleStyle = {
     fontSize: 'var(--font-lg)',
@@ -415,41 +408,48 @@ export default function ChatPage() {
     display: 'flex',
     flexDirection: 'column' as const,
     overflowY: 'auto',
-    paddingBottom: isKeyboardOpen ? '8px' : '24px' // ✨ DYNAMICALLY OVERRIDE CSS
+    // Dynamic padding to shrink gap with keyboard
+    paddingBottom: isKeyboardOpen ? '8px' : '24px'
   }
   const messagesStyle = {
     paddingTop: '20px',
     display: 'flex',
     flexDirection: 'column' as const,
     gap: '12px',
-    paddingBottom: isKeyboardOpen ? '10px' : '45px' // ✨ DYNAMIC (was 50px)
+    // Dynamic padding to shrink gap with keyboard
+    paddingBottom: isKeyboardOpen ? '10px' : '45px'
   }
   const floatingInputContainerStyle = {
     position: 'sticky' as const,
     bottom: isKeyboardOpen ? '0px' : '80px',
     left: '0',
     right: '0',
+    // Dynamic top padding
     paddingTop: isKeyboardOpen ? '8px' : '16px',
     paddingLeft: '24px',
     paddingRight: '24px',
     paddingBottom: 'max(16px, env(safe-area-inset-bottom))',
-    backgroundColor: 'var(--bg-primary)',
+    // Transparent background
+    backgroundColor: 'transparent',
+    background: 'transparent', 
     zIndex: 999,
     flexShrink: 0,
-    transition: 'bottom 0.2s ease-out'
+    transition: 'bottom 0.2s ease-out',
+    pointerEvents: 'none' as const // Let clicks pass through
   }
   const textInputWrapperStyle = {
     display: 'flex',
     alignItems: 'center',
     border: `1px solid var(--border-light)`,
     borderRadius: '24px', 
-    backgroundColor: 'var(--bg-secondary)',
+    backgroundColor: 'var(--bg-secondary)', // Input bar keeps its background
     paddingLeft: '16px',
     paddingRight: '6px',
     minHeight: '48px', 
     maxWidth: '800px',
     margin: '0 auto',
     boxShadow: 'var(--shadow-md)',
+    pointerEvents: 'auto' as const // But the bar itself is clickable
   }
   const textInputStyle = {
     flex: 1,
@@ -494,9 +494,10 @@ export default function ChatPage() {
   const clearChatContainerStyle = {
     display: 'flex',
     justifyContent: 'center',
-    paddingBottom: '12px',
+    paddingBottom: '8px', // Tightened up
     maxWidth: '800px',
-    margin: '0 auto'
+    margin: '0 auto',
+    pointerEvents: 'auto' as const // Clickable
   }
   const clearChatButtonStyle = {
     fontSize: '12px',
@@ -508,8 +509,7 @@ export default function ChatPage() {
     borderRadius: '6px',
     backgroundColor: 'var(--bg-tertiary)'
   }
-
-  // --- NEW: Search Bar Styles ---
+  
   const searchBarStyle = {
     display: 'flex',
     alignItems: 'center',
@@ -536,7 +536,6 @@ export default function ChatPage() {
   return (
     <div style={containerStyle} className="chat-page-container">
       <header style={headerStyle} className="mobile-header">
-        
         <button onClick={toggleSidebar} className="mobile-menu-button" title="Open menu">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <line x1="3" y1="12" x2="21" y2="12"></line>
@@ -544,10 +543,7 @@ export default function ChatPage() {
             <line x1="3" y1="18" x2="21" y2="18"></line>
           </svg>
         </button>
-
         <h1 style={titleStyle}>FocusFlow Chat</h1>
-        
-        {/* --- NEW: Search Button --- */}
         <button
           onClick={() => setShowSearch(prev => !prev)}
           style={{
@@ -561,7 +557,6 @@ export default function ChatPage() {
             <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
           </svg>
         </button>
-
         <button
           onClick={toggleTts}
           style={{
@@ -585,7 +580,6 @@ export default function ChatPage() {
         </button>
       </header>
 
-      {/* --- NEW: Search Bar --- */}
       {showSearch && (
         <div style={searchBarStyle}>
           <input
@@ -612,7 +606,6 @@ export default function ChatPage() {
         </div>
       )}
 
-      {/* 11. ADDED ref to this div */}
       <div 
         ref={messagesContainerRef}
         className="page-container chat-messages-wrapper"
@@ -641,7 +634,6 @@ export default function ChatPage() {
             </div>
           )}
 
-          {/* --- NEW: No Search Results Message --- */}
           {(!isLoadingHistory && messages.length > 0 && filteredMessages.length === 0) && (
             <div className="chat-welcome-message" style={{minHeight: '100px', paddingTop: '20px', paddingBottom: '20px'}}>
               <span style={{ fontSize: '48px', marginBottom: '16px' }}>
@@ -656,23 +648,21 @@ export default function ChatPage() {
             </div>
           )}
 
-          {/* --- UPDATED: Use filteredMessages --- */}
+          {/* --- THIS IS THE FINAL RENDER LOOP --- */}
           {(() => {
-            let lastMessageDate: string | null = null; // 1. Track the last date
+            let lastMessageDate: string | null = null;
 
             return filteredMessages.map((message) => {
               let showDateSeparator = false;
-              const messageDateStr = message.timestamp.toDateString(); // Get a "YYYY-MM-DD" style string
+              const messageDateStr = message.timestamp.toDateString();
 
-              // 2. Check if this message's date is different from the last one
               if (messageDateStr !== lastMessageDate) {
                 showDateSeparator = true;
-                lastMessageDate = messageDateStr; // 3. Update the tracker
+                lastMessageDate = messageDateStr;
               }
 
               return (
                 <React.Fragment key={message.id}>
-                  {/* 4. Conditionally render the date separator */}
                   {showDateSeparator && (
                     <div className="chat-date-separator">
                       <span>{formatDateSeparator(message.timestamp)}</span>
@@ -682,10 +672,10 @@ export default function ChatPage() {
                   <div 
                     className={`message-bubble ${message.role === 'user' ? 'message-user' : 'message-assistant'}`}
                     onClick={(e) => {
-                      e.stopPropagation(); // Prevents click-outside handler from firing
-                      setSelectedMessage(message.id === selectedMessage?.id ? null : message); // Toggle selection
+                      e.stopPropagation();
+                      setSelectedMessage(message.id === selectedMessage?.id ? null : message);
                     }}
-                    style={{ cursor: 'pointer' }} // Add cursor pointer
+                    style={{ cursor: 'pointer' }}
                   >
                     <div 
                       className="chat-message-content"
@@ -696,7 +686,6 @@ export default function ChatPage() {
                     </div>
                   </div>
                   
-                  {/* Icon block remains here */}
                   {selectedMessage?.id === message.id && (
                     <div style={{
                       display: 'flex',
@@ -720,14 +709,28 @@ export default function ChatPage() {
                 </React.Fragment>
               );
             });
-          })()} {/* 5. Close the wrapper function */}
-
+          })()}
           <div ref={messagesEndRef} />
         </div>
       </div>
 
+      {/* Scroll-to-bottom button */}
+      {showScrollDown && !isKeyboardOpen && (
+        <button
+          onClick={() => scrollToBottom('smooth')}
+          className="chat-scroll-down-button"
+          title="Scroll to bottom"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <polyline points="19 12 12 19 5 12"></polyline>
+          </svg>
+        </button>
+      )}
+
       <div style={floatingInputContainerStyle}> 
-        {messages.length > 0 && !showSearch && ( // Hide clear button when searching
+        {/* "Clear Chat" button with new visibility logic */}
+        {messages.length > 0 && !showSearch && !isKeyboardOpen && !showScrollDown && (
           <div style={clearChatContainerStyle}>
             <button
               onClick={clearChat}
@@ -767,7 +770,7 @@ export default function ChatPage() {
         </form>
       </div>
       
-      {/* 16. REMOVED old context menu JSX */}
+      {/* Removed old context menu */}
 
       {showClearConfirm && (
         <div className="modal-overlay">
