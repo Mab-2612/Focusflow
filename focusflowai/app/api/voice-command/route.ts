@@ -2,17 +2,30 @@
 import { GoogleGenAI } from '@google/genai'
 import { createClient } from '@supabase/supabase-js'
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' })
+// --- REMOVE THIS LINE ---
+// const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' })
 
-// **FIX: Define the type for the incoming history**
 interface ApiHistoryItem {
   role: 'user' | 'model'
   parts: { text: string }[]
 }
 
 export async function POST(request: Request) {
+  // 1. GET THE API KEY *INSIDE* THE HANDLER
+  const apiKey = process.env.GEMINI_API_KEY;
+
+  if (!apiKey) {
+    console.error('Error: GEMINI_API_KEY is not set.');
+    return Response.json({ 
+      error: 'AI service is not configured.',
+      details: 'GEMINI_API_KEY is missing.'
+    }, { status: 500 });
+  }
+
+  // 2. INITIALIZE THE CLIENT *INSIDE* THE HANDLER
+  const ai = new GoogleGenAI({ apiKey });
+
   try {
-    // **FIX: Receive 'history' from the request body**
     const { message, history, user_id, timezone } = (await request.json()) as {
       message: string;
       history: ApiHistoryItem[];
@@ -56,14 +69,13 @@ export async function POST(request: Request) {
     const now = new Date();
     const systemPrompt = `You are a helpful assistant. The user is in the ${timezone || 'UTC'} timezone. The current date and time is: ${now.toLocaleString("en-US", { timeZone: timezone || 'UTC', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' })}. Answer all time/date-related questions based on this information. Format responses with markdown (bold, italics, lists).`;
     
-    // **FIX: Construct the full conversation history for the AI**
     const geminiResponse = await ai.models.generateContent({
       model: 'gemini-2.5-flash', 
       contents: [
         { role: 'user', parts: [{ text: systemPrompt }] },
         { role: 'model', parts: [{ text: "Understood. I'll be aware of the user's time and date." }] },
-        ...history, // <-- **FIX: Spread the provided history**
-        { role: 'user', parts: [{ text: message }] } // <-- Add the new message
+        ...history, 
+        { role: 'user', parts: [{ text: message }] }
       ]
     })
 

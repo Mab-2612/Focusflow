@@ -1,8 +1,8 @@
 //app/chat/page.tsx
 "use client"
 
-import { Loader2, Frown, Sparkles } from 'lucide-react'
-import { useState, useEffect, useRef, useMemo } from 'react' // Import useMemo
+import { Loader2, Frown, Sparkles, Copy, Edit } from 'lucide-react'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { useTheme } from '@/components/ThemeContext'
 import { useGoogleTTS } from '@/hooks/useGoogleTTS'
 import { useAuth } from '@/hooks/useAuth'
@@ -24,14 +24,7 @@ interface ApiHistoryItem {
   parts: { text: string }[]
 }
 
-interface ContextMenu {
-  visible: boolean;
-  x: number;
-  y: number;
-  messageId: string | null;
-  messageContent: string;
-  messageRole: 'user' | 'assistant';
-}
+// 2. REMOVED ContextMenu interface
 
 const MAX_MESSAGES = 100;
 
@@ -44,6 +37,55 @@ function parseMarkdown(text: string): string {
     .replace(/\*(.*?)\*/g, '<em>$1</em>')
     .replace(/^\* (.*$)/gm, '<ul><li>$1</li></ul>')
     .replace(/<\/ul>\n<ul>/gm, '')
+}
+
+// 3. ADDED Helper function to escape regex characters
+function escapeRegExp(string: string): string {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // $& means the whole matched string
+}
+
+// 4. ADDED Helper function to apply highlighting
+function getHighlightedText(text: string, highlight: string): string {
+  const parsedText = parseMarkdown(text); // First, parse markdown
+  
+  if (!highlight.trim()) {
+    return parsedText; // No search term, return plain parsed text
+  }
+
+  const regex = new RegExp(`(${escapeRegExp(highlight)})`, 'gi');
+  // Apply highlight *after* markdown parsing
+  return parsedText.replace(regex, (match) => `<mark class="search-highlight">${match}</mark>`);
+}
+
+function formatDateSeparator(date: Date): string {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+
+  const messageDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+  if (messageDate.getTime() === today.getTime()) {
+    return 'Today';
+  }
+
+  if (messageDate.getTime() === yesterday.getTime()) {
+    return 'Yesterday';
+  }
+
+  // Check if in the same year
+  if (messageDate.getFullYear() === today.getFullYear()) {
+    return messageDate.toLocaleDateString('en-US', {
+      month: 'long',
+      day: 'numeric',
+    });
+  }
+
+  // Default for older dates
+  return messageDate.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
 }
 
 export default function ChatPage() {
@@ -66,18 +108,14 @@ export default function ChatPage() {
   const [showSearch, setShowSearch] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   
-  const [contextMenu, setContextMenu] = useState<ContextMenu>({
-    visible: false,
-    x: 0,
-    y: 0,
-    messageId: null,
-    messageContent: '',
-    messageRole: 'user'
-  });
+  // 5. REPLACED contextMenu state with selectedMessage state
+  const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null); 
   const tempMessageIdRef = useRef<string | null>(null);
+  // 6. ADDED Ref for click-outside
+  const messagesContainerRef = useRef<HTMLDivElement>(null); 
 
   const { speak, stopSpeaking } = useGoogleTTS()
 
@@ -202,13 +240,17 @@ export default function ChatPage() {
     }
   }, [isProcessing, messages]);
   
+  // 7. REPLACED contextMenu click listener with selectedMessage click listener
   useEffect(() => {
-    const handleClick = () => setContextMenu({ ...contextMenu, visible: false });
-    if (contextMenu.visible) {
-      window.addEventListener('click', handleClick);
-    }
-    return () => window.removeEventListener('click', handleClick);
-  }, [contextMenu.visible]);
+    const handleClickOutside = (event: MouseEvent) => {
+      // If click is outside the messages container, close the icons
+      if (messagesContainerRef.current && !messagesContainerRef.current.contains(event.target as Node)) {
+        setSelectedMessage(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []); // Empty dependency array
 
   // --- HANDLERS ---
   const addMessage = (message: Message) => {
@@ -326,23 +368,17 @@ export default function ChatPage() {
     }
   }
   
-  const handleShowMenu = (e: React.MouseEvent, message: Message) => {
-    e.preventDefault();
-    setContextMenu({
-      visible: true,
-      x: e.clientX,
-      y: e.clientY,
-      messageId: message.id,
-      messageContent: message.content,
-      messageRole: message.role
-    });
+  // 8. REMOVED handleShowMenu
+  
+  // 9. UPDATED handleCopy and handleEdit to accept content
+  const handleCopy = (content: string) => {
+    navigator.clipboard.writeText(content);
+    setSelectedMessage(null); // Close icons after action
   };
-  const handleCopy = () => {
-    navigator.clipboard.writeText(contextMenu.messageContent);
-  };
-  const handleEdit = () => {
-    setInputText(contextMenu.messageContent);
+  const handleEdit = (content: string) => {
+    setInputText(content);
     inputRef.current?.focus();
+    setSelectedMessage(null); // Close icons after action
   };
 
   // --- STYLES ---
@@ -378,24 +414,26 @@ export default function ChatPage() {
     flex: 1,
     display: 'flex',
     flexDirection: 'column' as const,
-    overflowY: 'auto'
+    overflowY: 'auto',
+    paddingBottom: isKeyboardOpen ? '8px' : '24px' // ✨ DYNAMICALLY OVERRIDE CSS
   }
   const messagesStyle = {
     paddingTop: '20px',
     display: 'flex',
     flexDirection: 'column' as const,
     gap: '12px',
-    paddingBottom: '50px' // Added padding for scroll
+    paddingBottom: isKeyboardOpen ? '10px' : '45px' // ✨ DYNAMIC (was 50px)
   }
   const floatingInputContainerStyle = {
     position: 'sticky' as const,
     bottom: isKeyboardOpen ? '0px' : '80px',
     left: '0',
     right: '0',
-    padding: '16px 24px 8px 24px',
-    paddingBottom: 'max(8px, env(safe-area-inset-bottom))',
+    paddingTop: isKeyboardOpen ? '8px' : '16px',
+    paddingLeft: '24px',
+    paddingRight: '24px',
+    paddingBottom: 'max(16px, env(safe-area-inset-bottom))',
     backgroundColor: 'var(--bg-primary)',
-    background: `linear-gradient(to top, var(--bg-primary) 80px, transparent 100%)`,
     zIndex: 999,
     flexShrink: 0,
     transition: 'bottom 0.2s ease-out'
@@ -470,19 +508,7 @@ export default function ChatPage() {
     borderRadius: '6px',
     backgroundColor: 'var(--bg-tertiary)'
   }
-  const contextMenuStyle = {
-    position: 'fixed' as const,
-    top: `${contextMenu.y}px`,
-    left: `${contextMenu.x}px`,
-    zIndex: 1012,
-    backgroundColor: 'var(--bg-secondary)',
-    borderRadius: 'var(--radius-md)',
-    boxShadow: 'var(--shadow-lg)',
-    border: '1px solid var(--border-light)',
-    padding: '8px',
-    animation: 'fadeIn 0.1s ease-out'
-  }
-  
+
   // --- NEW: Search Bar Styles ---
   const searchBarStyle = {
     display: 'flex',
@@ -586,7 +612,9 @@ export default function ChatPage() {
         </div>
       )}
 
+      {/* 11. ADDED ref to this div */}
       <div 
+        ref={messagesContainerRef}
         className="page-container chat-messages-wrapper"
         style={chatContainerStyle}
       >
@@ -629,21 +657,71 @@ export default function ChatPage() {
           )}
 
           {/* --- UPDATED: Use filteredMessages --- */}
-          {filteredMessages.map((message) => (
-            <div 
-              key={message.id} 
-              className={`message-bubble ${message.role === 'user' ? 'message-user' : 'message-assistant'}`}
-              onContextMenu={(e) => handleShowMenu(e, message)}
-            >
-              <div 
-                className="chat-message-content" 
-                dangerouslySetInnerHTML={{ __html: parseMarkdown(message.content) }} 
-              />
-              <div className="message-timestamp">
-                {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </div>
-            </div>
-          ))}
+          {(() => {
+            let lastMessageDate: string | null = null; // 1. Track the last date
+
+            return filteredMessages.map((message) => {
+              let showDateSeparator = false;
+              const messageDateStr = message.timestamp.toDateString(); // Get a "YYYY-MM-DD" style string
+
+              // 2. Check if this message's date is different from the last one
+              if (messageDateStr !== lastMessageDate) {
+                showDateSeparator = true;
+                lastMessageDate = messageDateStr; // 3. Update the tracker
+              }
+
+              return (
+                <React.Fragment key={message.id}>
+                  {/* 4. Conditionally render the date separator */}
+                  {showDateSeparator && (
+                    <div className="chat-date-separator">
+                      <span>{formatDateSeparator(message.timestamp)}</span>
+                    </div>
+                  )}
+
+                  <div 
+                    className={`message-bubble ${message.role === 'user' ? 'message-user' : 'message-assistant'}`}
+                    onClick={(e) => {
+                      e.stopPropagation(); // Prevents click-outside handler from firing
+                      setSelectedMessage(message.id === selectedMessage?.id ? null : message); // Toggle selection
+                    }}
+                    style={{ cursor: 'pointer' }} // Add cursor pointer
+                  >
+                    <div 
+                      className="chat-message-content"
+                      dangerouslySetInnerHTML={{ __html: getHighlightedText(message.content, searchTerm) }} 
+                    />
+                    <div className="message-timestamp">
+                      {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                  </div>
+                  
+                  {/* Icon block remains here */}
+                  {selectedMessage?.id === message.id && (
+                    <div style={{
+                      display: 'flex',
+                      gap: '8px',
+                      justifyContent: message.role === 'user' ? 'flex-end' : 'flex-start',
+                      paddingLeft: message.role === 'assistant' ? '16px' : 0, 
+                      paddingRight: message.role === 'user' ? '16px' : 0,
+                      marginTop: '-4px',
+                      marginBottom: '4px'
+                    }}>
+                      <button className="chat-action-icon" title="Copy" onClick={() => handleCopy(message.content)}>
+                        <Copy size={14} />
+                      </button>
+                      {message.role === 'user' && (
+                        <button className="chat-action-icon" title="Edit" onClick={() => handleEdit(message.content)}>
+                          <Edit size={14} />
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </React.Fragment>
+              );
+            });
+          })()} {/* 5. Close the wrapper function */}
+
           <div ref={messagesEndRef} />
         </div>
       </div>
@@ -689,18 +767,7 @@ export default function ChatPage() {
         </form>
       </div>
       
-      {contextMenu.visible && (
-        <div style={contextMenuStyle}>
-          <button className="context-menu-button" onClick={handleCopy}>
-            Copy Text
-          </button>
-          {contextMenu.messageRole === 'user' && (
-            <button className="context-menu-button" onClick={handleEdit}>
-              Edit & Resend
-            </button>
-          )}
-        </div>
-      )}
+      {/* 16. REMOVED old context menu JSX */}
 
       {showClearConfirm && (
         <div className="modal-overlay">

@@ -772,7 +772,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   flex: 1; /* This makes the chat area grow */
   overflow-y: auto; /* This is where the scrolling happens */
   /* Remove page-container's 120px bottom padding */
-  padding-bottom: 24px !important; 
+  padding-bottom: 24px; 
 }
 
 /* This is the welcome message ("Ask me anything") */
@@ -825,4 +825,60 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 }
 .context-menu-button:hover {
   background-color: var(--bg-tertiary);
+}
+
+/* ===== SEARCH HIGHLIGHT STYLES ===== */
+.search-highlight {
+  background-color: var(--accent-warning);
+  color: var(--text-primary);
+  border-radius: 3px;
+  padding: 0 2px;
+}
+
+[data-theme="dark"] .search-highlight {
+  background-color: #f59e0b; /* A bright yellow */
+  color: #1f2937; /* Dark text for contrast */
+}
+
+/* ===== CHAT ACTION ICONS ===== */
+.chat-action-icon {
+  background-color: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border-radius: 50%;
+  padding: 6px;
+  cursor: pointer;
+  border: 1px solid var(--border-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s ease;
+}
+.chat-action-icon:hover {
+  background-color: var(--border-light);
+  color: var(--text-primary);
+}
+
+/* ===== CHAT DATE SEPARATOR ===== */
+.chat-date-separator {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 12px 0;
+  width: 100%;
+  pointer-events: none; /* So it doesn't block clicks */
+}
+
+.chat-date-separator span {
+  background-color: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 12px;
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm);
+}
+
+[data-theme="dark"] .chat-date-separator span {
+  background-color: var(--bg-secondary); /* Darker pill */
+  color: var(--text-tertiary);
 }
