@@ -1,21 +1,19 @@
-"components/SimpleAnalyticsDashboard.tsx"
+// components/SimpleAnalyticsDashboard.tsx
 "use client"
 
 import { useAnalyticsStore } from '@/lib/analyticsStore'
 import { useTheme } from '@/components/ThemeContext'
 import { useEffect, useState } from 'react'
+import { BarChart2 } from 'lucide-react' // <-- IMPORT ICON
 
 interface AnalyticsSummary {
-  todayFocus: number
-  todayTasks: number
-  weekFocus: number
-  weekTasks: number
-  productivityScore: number
+  // ... (interface remains the same)
 }
 
 export default function SimpleAnalyticsDashboard() {
   const { theme } = useTheme()
   const { productivityScore, dailyStats } = useAnalyticsStore()
+  // ... (rest of state and functions remain the same)
   const [summary, setSummary] = useState<AnalyticsSummary>({
     todayFocus: 0,
     todayTasks: 0,
@@ -32,7 +30,6 @@ export default function SimpleAnalyticsDashboard() {
     const today = new Date().toISOString().split('T')[0]
     const todayData = dailyStats[today] || { focusTime: 0, tasksCompleted: 0 }
     
-    // Calculate weekly totals
     const last7Days = Array.from({ length: 7 }, (_, i) => {
       const date = new Date()
       date.setDate(date.getDate() - i)
@@ -60,6 +57,7 @@ export default function SimpleAnalyticsDashboard() {
     return Math.min(100, (value / max) * 100)
   }
 
+  // ... (all styles remain the same)
   const containerStyle = {
     backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff',
     borderRadius: '12px',
@@ -111,6 +109,7 @@ export default function SimpleAnalyticsDashboard() {
     transition: 'width 0.3s ease'
   })
 
+
   return (
     <div style={containerStyle}>
       <h3 style={{ 
@@ -120,10 +119,13 @@ export default function SimpleAnalyticsDashboard() {
         alignItems: 'center',
         gap: '8px'
       }}>
-        📊 Productivity Overview
+        {/* --- UPDATED --- */}
+        <BarChart2 size={20} />
+        Productivity Overview
       </h3>
       
       <div style={statGridStyle}>
+        {/* ... (rest of the stat cards) ... */}
         <div style={statCardStyle}>
           <div style={statValueStyle}>{summary.todayFocus}m</div>
           <div style={statLabelStyle}>Today's Focus</div>
@@ -175,8 +177,7 @@ export default function SimpleAnalyticsDashboard() {
           </div>
         </div>
       </div>
-
-      {/* Weekly Summary */}
+      {/* ... (rest of the component) ... */}
       <div style={{
         padding: '16px',
         backgroundColor: theme === 'dark' ? '#374151' : '#f9fafb',

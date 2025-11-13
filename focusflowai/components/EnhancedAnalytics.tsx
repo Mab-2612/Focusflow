@@ -1,17 +1,20 @@
+// components/EnhancedAnalytics.tsx
 "use client"
 
 import { useAnalyticsStore } from '@/lib/analyticsStore'
 import { useTheme } from '@/components/ThemeContext'
+import { Smile, Meh, Frown, BarChart2, TrendingUp, Calendar } from 'lucide-react' // <-- IMPORT ICONS
 
 export default function EnhancedAnalytics() {
   const { theme } = useTheme()
   const { productivityScore, weeklyTrends, dailyStats } = useAnalyticsStore()
 
+  // --- UPDATED: Use SVG components ---
   const getProductivityLevel = (score: number) => {
-    if (score >= 80) return { level: 'Excellent', color: '#10b981', emoji: '🚀' }
-    if (score >= 60) return { level: 'Good', color: '#f59e0b', emoji: '👍' }
-    if (score >= 40) return { level: 'Average', color: '#6b7280', emoji: '📊' }
-    return { level: 'Needs Improvement', color: '#ef4444', emoji: '💪' }
+    if (score >= 80) return { level: 'Excellent', color: '#10b981', emoji: <Smile /> }
+    if (score >= 60) return { level: 'Good', color: '#f59e0b', emoji: <Smile /> }
+    if (score >= 40) return { level: 'Average', color: '#6b7280', emoji: <Meh /> }
+    return { level: 'Needs Improvement', color: '#ef4444', emoji: <Frown /> }
   }
 
   const productivityInfo = getProductivityLevel(productivityScore)
@@ -30,7 +33,9 @@ export default function EnhancedAnalytics() {
         alignItems: 'center',
         gap: '10px'
       }}>
-        📈 Productivity Insights
+        {/* --- UPDATED --- */}
+        <BarChart2 size={20} />
+        Productivity Insights
       </h3>
 
       {/* Productivity Score Card */}
@@ -61,6 +66,7 @@ export default function EnhancedAnalytics() {
           justifyContent: 'center',
           gap: '8px'
         }}>
+          {/* --- UPDATED --- */}
           {productivityInfo.emoji} {productivityInfo.level}
         </div>
       </div>
@@ -69,9 +75,14 @@ export default function EnhancedAnalytics() {
       <div style={{ marginBottom: '20px' }}>
         <h4 style={{ 
           marginBottom: '15px', 
-          color: theme === 'dark' ? '#f3f4f6' : '#374151' 
+          color: theme === 'dark' ? '#f3f4f6' : '#374151',
+          display: 'flex', // <-- ADDED
+          alignItems: 'center', // <-- ADDED
+          gap: '8px' // <-- ADDED
         }}>
-          📅 Weekly Focus Trend
+          {/* --- UPDATED --- */}
+          <TrendingUp size={18} />
+          Weekly Focus Trend
         </h4>
         <div style={{ display: 'flex', alignItems: 'end', gap: '8px', height: '120px' }}>
           {weeklyTrends.map((day, index) => (
@@ -111,9 +122,14 @@ export default function EnhancedAnalytics() {
       <div>
         <h4 style={{ 
           marginBottom: '15px', 
-          color: theme === 'dark' ? '#f3f4f6' : '#374151' 
+          color: theme === 'dark' ? '#f3f4f6' : '#374151',
+          display: 'flex', // <-- ADDED
+          alignItems: 'center', // <-- ADDED
+          gap: '8px' // <-- ADDED
         }}>
-          📊 Today's Progress
+          {/* --- UPDATED --- */}
+          <Calendar size={18} />
+          Today's Progress
         </h4>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
           <div style={{ 

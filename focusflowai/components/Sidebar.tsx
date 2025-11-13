@@ -5,16 +5,21 @@ import { useState, useEffect } from 'react'
 import { useTheme } from '@/components/ThemeContext'
 import { useAuth } from '@/hooks/useAuth'
 import { useSound } from '@/contexts/SoundContext'
-import { useRouter, usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabase/client' 
 import { useSidebar } from '@/contexts/SidebarContext'
+import { 
+  User, Bell, BarChart2, Settings, Volume2, Moon, Sun, 
+  CloudRain, Waves, Trees, Flame, CloudLightning, Droplet, Bird, Wind,
+  ChevronDown, ChevronUp, X, Loader2
+} from 'lucide-react'
 
 export default function Sidebar() {
-  const { theme, resolvedTheme, setTheme } = useTheme()
+  const { resolvedTheme, setTheme } = useTheme()
   const { user } = useAuth()
-  const router = useRouter()
+  const router = useRouter() // Keep router for sign-out redirect
   const pathname = usePathname() 
-  
   const { isSidebarOpen, toggleSidebar } = useSidebar()
 
   const { 
@@ -28,25 +33,34 @@ export default function Sidebar() {
 
   const [isSoundListOpen, setIsSoundListOpen] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
+  const [isClient, setIsClient] = useState(false) // For hydration fix
 
-  const fetchUnreadCount = async () => {
-    if (!user) return;
-    const { count, error } = await supabase
-      .from('notifications')
-      .select('id', { count: 'exact', head: true })
-      .eq('is_read', false)
-      .eq('user_id', user.id); 
-      
-    if (error) {
-      console.error('Error fetching unread count:', error);
-    } else {
-      setUnreadCount(count || 0);
-    }
-  };
+  // Set isClient to true once the component mounts
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
 
+  // Fetch unread notification count
   useEffect(() => {
     if (!user) return;
+    
+    const fetchUnreadCount = async () => {
+      if (!user) return;
+      const { count, error } = await supabase
+        .from('notifications')
+        .select('id', { count: 'exact', head: true })
+        .eq('is_read', false)
+        .eq('user_id', user.id); 
+        
+      if (error) {
+        console.error('Error fetching unread count:', error);
+      } else {
+        setUnreadCount(count || 0);
+      }
+    };
     fetchUnreadCount();
+    
+    // Listen for real-time changes to notifications
     const channel = supabase
       .channel('public:notifications')
       .on(
@@ -57,17 +71,20 @@ export default function Sidebar() {
         }
       )
       .subscribe();
+      
     return () => {
       supabase.removeChannel(channel);
     };
   }, [user]);
 
-
+  // Close sound list when sidebar closes
   useEffect(() => {
     if (!isSidebarOpen) {
       setIsSoundListOpen(false)
     }
   }, [isSidebarOpen])
+
+  // --- HANDLERS ---
 
   const handleSoundAccordionClick = () => {
     if (!isAudioUnlocked) {
@@ -76,54 +93,77 @@ export default function Sidebar() {
     setIsSoundListOpen(!isSoundListOpen);
   }
 
-  const handleLinkClick = (path: string) => {
-    router.push(path)
+  // Simplified link click handler (navigation is done by <Link>)
+  const handleLinkClick = () => {
     toggleSidebar()
   }
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    toggleSidebar(); // Close sidebar
+    router.push('/onboarding'); // Redirect to login
+  }
   
-  const isDark = resolvedTheme === 'dark'
-  const nextTheme = isDark ? 'light' : 'dark'
-  const themeIcon = isDark ? '🌙' : '☀️'
+  // Helper to get the correct sound icon
+  const getSoundIcon = (soundId: string) => {
+    const props = { size: 20, style: { flexShrink: 0 } }
+    switch (soundId) {
+      case 'rain': return <CloudRain {...props} />;
+      case 'waves': return <Waves {...props} />;
+      case 'forest': return <Trees {...props} />;
+      case 'fire': return <Flame {...props} />; // Corrected from 'Fire'
+      case 'thunder': return <CloudLightning {...props} />;
+      case 'stream': return <Droplet {...props} />;
+      case 'birds': return <Bird {...props} />;
+      case 'wind': return <Wind {...props} />;
+      default: return null;
+    }
+  }
 
-  const soundButtonStyle = (soundId: string) => ({
-    padding: '10px 12px',
-    backgroundColor: selectedSound === soundId ? '#3b82f6' : (theme === 'dark' ? '#111827' : '#f9fafb'),
-    color: selectedSound === soundId ? 'white' : (theme === 'dark' ? '#f3f4f6' : '#374151'),
-    border: `1px solid ${theme === 'dark' ? '#4b5563' : '#e5e7eb'}`,
-    borderRadius: '8px',
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    width: '100%',
-    transition: 'all 0.1s ease',
-    opacity: soundsLoading[soundId] ? 0.6 : 1,
-  })
+  // --- STYLES & DYNAMIC VARS ---
 
-  const navItemStyle = (path: string) => ({
+  // Style for active/inactive navigation links
+  const navItemStyle = (isActive: boolean) => ({
     display: 'flex',
     alignItems: 'center',
     gap: '12px',
     padding: '12px',
     borderRadius: 'var(--radius-md)',
     fontSize: 'var(--font-base)',
-    color: 'var(--text-primary)',
     textAlign: 'left' as const,
-    backgroundColor: pathname === path ? 'var(--bg-tertiary)' : 'transparent',
-    fontWeight: pathname === path ? '600' : '400',
-    position: 'relative' as const
+    position: 'relative' as const,
+    backgroundColor: isActive ? 'var(--bg-tertiary)' : 'transparent',
+    fontWeight: isActive ? '600' : '400',
+    color: isActive ? 'var(--accent-primary)' : 'var(--text-primary)',
+    textDecoration: 'none' // For Link component
   })
+
+  // Dynamic theme variables for hydration fix
+  const isDark = resolvedTheme === 'dark'
+  const nextTheme = isDark ? 'light' : 'dark'
+  const themeIcon = isDark ? <Moon size={20} /> : <Sun size={20} />
+  const themeText = isDark ? "Dark Mode" : "Light Mode"
   
-  // FIXED: Restored the spinner's JSX
+  // Reusable inline spinner
   const inlineSpinner = (
-    <div className="animate-spin" style={{
-      width: '16px',
-      height: '16px',
-      border: '2px solid var(--border-medium)',
-      borderTopColor: 'var(--accent-primary)',
-      borderRadius: '50%'
-    }} />
+    <Loader2 
+      size={16}
+      className="animate-spin"
+      style={{
+        color: 'var(--accent-primary)'
+      }} 
+    />
   )
+
+  // Wrapper for theme icon to prevent layout shift
+  const iconWrapperStyle = {
+    width: '20px',
+    height: '20px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0
+  }
 
   return (
     <>
@@ -135,7 +175,9 @@ export default function Sidebar() {
       <div className={`sidebar ${isSidebarOpen ? 'open' : ''}`}>
         <div className="sidebar-header">
           <span className="sidebar-title">FocusFlow</span>
-          <button onClick={toggleSidebar} className="sidebar-close-button">×</button>
+          <button onClick={toggleSidebar} className="sidebar-close-button" title="Close menu">
+            <X size={24} />
+          </button>
         </div>
         
         <div className="sidebar-content">
@@ -156,30 +198,33 @@ export default function Sidebar() {
           )}
 
           <nav className="sidebar-nav">
-            <button style={navItemStyle('/profile')} onClick={() => handleLinkClick('/profile')}>
-              👤 Profile
-            </button>
+            {/* --- UPDATED: Navigation items are now <Link> components --- */}
+            <Link href="/profile" style={navItemStyle(pathname === '/profile')} onClick={handleLinkClick}>
+              <User size={20} /> Profile
+            </Link>
             
-            <button style={navItemStyle('/notifications')} onClick={() => handleLinkClick('/notifications')}>
-              🔔 Notifications
+            <Link href="/notifications" style={navItemStyle(pathname === '/notifications')} onClick={handleLinkClick}>
+              <Bell size={20} /> Notifications
               {unreadCount > 0 && (
                 <span className="sidebar-badge">{unreadCount}</span>
               )}
-            </button>
+            </Link>
             
-            <button style={navItemStyle('/analytics')} onClick={() => handleLinkClick('/analytics')}>
-              📊 Analytics
-            </button>
-            <button style={navItemStyle('/preferences')} onClick={() => handleLinkClick('/preferences')}>
-              ⚙️ Preferences
-            </button>
+            <Link href="/analytics" style={navItemStyle(pathname === '/analytics')} onClick={handleLinkClick}>
+              <BarChart2 size={20} /> Analytics
+            </Link>
+
+            <Link href="/preferences" style={navItemStyle(pathname === '/preferences')} onClick={handleLinkClick}>
+              <Settings size={20} /> Preferences
+            </Link>
             
+            {/* This one remains a button because it's an accordion */}
             <button 
               className="sidebar-nav-item"
-              style={navItemStyle('/calm-mode')}
+              style={navItemStyle(pathname === '/calm-mode')}
               onClick={handleSoundAccordionClick}
             >
-              🔊 Calming Sounds
+              <Volume2 size={20} /> Calming Sounds
               <span style={{ 
                 marginLeft: 'auto', 
                 transform: isSoundListOpen ? 'rotate(180deg)' : 'rotate(0deg)', 
@@ -187,39 +232,45 @@ export default function Sidebar() {
                 display: 'flex',
                 alignItems: 'center'
               }}>
-                <svg 
-                  width="16" 
-                  height="16" 
-                  viewBox="0 0 24 24" 
-                  fill="none" 
-                  stroke="currentColor" 
-                  strokeWidth="2.5" 
-                  strokeLinecap="round" 
-                  strokeLinejoin="round"
-                >
-                  <polyline points="18 15 12 9 6 15"></polyline>
-                </svg>
+                {isSoundListOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
               </span>
             </button>
             
             {isSoundListOpen && (
-              <div className="sidebar-sound-list">
+              <div style={{
+                paddingLeft: '24px', 
+                animation: 'fadeIn 0.3s ease',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
+                paddingTop: '8px'
+              }}>
                 {soundOptions.map(sound => (
                   <button
                     key={sound.id}
                     onClick={() => playSound(sound)}
-                    style={soundButtonStyle(sound.id)}
+                    style={{
+                      padding: '10px 12px',
+                      backgroundColor: selectedSound === sound.id ? 'var(--bg-tertiary)' : 'transparent',
+                      color: selectedSound === sound.id ? 'var(--accent-primary)' : 'var(--text-primary)',
+                      border: 'none',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      width: '100%',
+                      opacity: soundsLoading[sound.id] ? 0.6 : 1,
+                    }}
                     disabled={soundsLoading[sound.id]}
                   >
-                    {soundsLoading[sound.id] ? inlineSpinner : (
-                      <span style={{ fontSize: '1.2rem', width: '16px' }}>{sound.emoji}</span>
-                    )}
-                    <span style={{ flex: 1, textAlign: 'left' }}>{sound.name}</span>
+                    {soundsLoading[sound.id] ? inlineSpinner : getSoundIcon(sound.id)}
+                    <span style={{ flex: 1, textAlign: 'left', fontSize: 'var(--font-sm)' }}>{sound.name}</span>
                     {selectedSound === sound.id && (
                       <span style={{ 
                         fontSize: '12px',
-                        color: theme === 'dark' ? 'rgba(255, 255, 255, 0.8)' : 'inherit',
-                        animation: 'pulse 1s infinite'
+                        color: 'var(--accent-primary)',
+                        animation: 'pulse 1.5s infinite'
                       }}>
                         ●
                       </span>
@@ -230,13 +281,33 @@ export default function Sidebar() {
             )}
           </nav>
           
+          {/* --- UPDATED: Theme Toggle with Hydration Fix --- */}
           <div className="sidebar-theme-toggle">
-            <span>{themeIcon} {isDark ? 'Dark' : 'Light'} Mode</span>
+            <span style={{
+              fontSize: 'var(--font-sm)',
+              color: 'var(--text-primary)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px'
+            }}>
+              
+              {/* Icon Wrapper */}
+              <span style={iconWrapperStyle}>
+                {isClient ? themeIcon : null}
+              </span>
+              
+              {/* Text Wrapper */}
+              <span>
+                {isClient ? themeText : "Loading..."}
+              </span>
+              
+            </span>
             <label className="toggle-switch">
               <input 
                 type="checkbox" 
                 checked={isDark}
                 onChange={() => setTheme(nextTheme)}
+                disabled={!isClient}
               />
               <span className="toggle-slider"></span>
             </label>
@@ -245,25 +316,22 @@ export default function Sidebar() {
         
         {user && (
           <div className="sidebar-footer">
-            <button className="sidebar-signout-button" onClick={() => supabase.auth.signOut()}>
+            <button className="sidebar-signout-button" onClick={handleSignOut}>
               Sign Out
             </button>
           </div>
         )}
       </div>
       
+      {/* Styles for new elements */}
       <style jsx>{`
-        .sidebar-sound-list {
-          padding: 8px 12px 12px 12px;
-          border-bottom: 1px solid var(--border-light);
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-          animation: fadeIn 0.3s ease;
-        }
         @keyframes pulse {
           0%, 100% { opacity: 1; }
-          50% { opacity: 0.5; }
+          50% { opacity: 0.4; }
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(-10px); }
+          to { opacity: 1; transform: translateY(0); }
         }
       `}</style>
     </>

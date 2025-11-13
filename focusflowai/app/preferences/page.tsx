@@ -1,7 +1,7 @@
 // app/preferences/page.tsx
 "use client"
 
-import { useTheme } from '@/components/ThemeContext'
+import { useTheme } from "@/components/ThemeContext"
 import Navbar from '@/components/Navbar'
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/hooks/useAuth'

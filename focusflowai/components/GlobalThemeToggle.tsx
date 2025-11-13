@@ -1,49 +1,56 @@
 // components/GlobalThemeToggle.tsx
 "use client"
 
-import { useTheme } from '@/components/ThemeContext'
-import { useAuth } from '@/hooks/useAuth'
+import { useState, useEffect } from 'react'
+import { useTheme } from "@/components/ThemeContext" // This path should be correct now
+import { Moon, Sun } from 'lucide-react'
 
 export default function GlobalThemeToggle() {
-  const { resolvedTheme, setTheme } = useTheme()
-  const { user } = useAuth()
+  const { theme, toggleTheme } = useTheme()
   
-  // Directly get theme state
-  const isDark = resolvedTheme === 'dark'
-  const nextTheme = isDark ? 'light' : 'dark'
-  const icon = isDark ? '🌙' : '☀️'
+  // --- FIX: Add a state to check if the component is mounted ---
+  const [isClient, setIsClient] = useState(false)
 
-  // Only show if the user is logged in
-  if (!user) return null
+  // On mount, set isClient to true
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
+
+  const isDark = theme === 'dark'
+  const themeIcon = isDark ? <Moon size={20} /> : <Sun size={20} />
+
+  // This style prevents the layout from "jumping" when the icon loads
+  const iconWrapperStyle = {
+    width: '20px',
+    height: '20px',
+    display: 'inline-block' // Ensures it lines up like the span
+  }
 
   return (
-    <button
-      onClick={() => setTheme(nextTheme)}
-      style={{
-        position: 'fixed',
-        top: '20px',
-        right: '20px',
-        padding: '8px', 
-        
-        // FIXED: Use primary background and light border to blend in
-        backgroundColor: 'var(--bg-primary)',
-        border: `1px solid var(--border-light)`,
-        
-        color: resolvedTheme === 'dark' ? '#f3f4f6' : '#374151',
-        borderRadius: '50%', // Circular
-        cursor: 'pointer',
-        fontSize: '20px', 
+    <div className="sidebar-theme-toggle">
+      <span style={{
+        fontSize: 'var(--font-sm)',
+        color: 'var(--text-primary)',
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 1000,
-        transition: 'all 0.3s ease',
-        width: '40px', // Compact size
-        height: '40px' // Compact size
-      }}
-      title={`Switch to ${nextTheme} mode`}
-    >
-      <span>{icon}</span>
-    </button>
+        gap: '12px'
+      }}>
+        {/* --- FIX: Only render the icon on the client --- */}
+        <span style={iconWrapperStyle}>
+          {isClient ? themeIcon : null}
+        </span>
+        Dark Mode
+      </span>
+      <label className="toggle-switch">
+        <input
+          type="checkbox"
+          checked={isDark}
+          onChange={toggleTheme}
+          // Only enable the toggle once the client is loaded
+          disabled={!isClient}
+        />
+        <span className="toggle-slider"></span>
+      </label>
+    </div>
   )
 }

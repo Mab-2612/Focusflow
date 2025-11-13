@@ -4,8 +4,9 @@
 import { useState, useEffect } from 'react'
 import { useTheme } from '@/components/ThemeContext'
 import Navbar from '@/components/Navbar'
-import { useAuth } from '@/hooks/useAuth' // Import useAuth
-import { supabase } from '@/lib/supabase/client' // Import supabase
+import { useAuth } from '@/hooks/useAuth'
+import { supabase } from '@/lib/supabase/client'
+import { CheckCircle2, Info, XCircle, Bell, Loader2, Inbox } from 'lucide-react' // <-- IMPORT ICONS
 
 // Define the Notification type based on your DB table
 interface Notification {
@@ -91,12 +92,13 @@ export default function NotificationsPage() {
     }
   };
 
+  // --- UPDATED: Use SVG icons instead of emojis ---
   const getIcon = (type: string) => {
     switch (type) {
-      case 'success': return '✅';
-      case 'info': return 'ℹ️';
-      case 'error': return '❌';
-      default: return '🔔';
+      case 'success': return <CheckCircle2 color="var(--accent-success)" />;
+      case 'info': return <Info color="var(--accent-primary)" />;
+      case 'error': return <XCircle color="var(--accent-danger)" />;
+      default: return <Bell color="var(--text-tertiary)" />;
     }
   };
   
@@ -104,7 +106,7 @@ export default function NotificationsPage() {
 
   // --- Styles ---
   const containerStyle = {
-    minHeight: '100vh',
+    minHeight: '90vh',
     backgroundColor: theme === 'dark' ? '#111827' : '#f9fafb',
     color: theme === 'dark' ? '#f3f4f6' : '#1f2937',
   }
@@ -149,7 +151,9 @@ export default function NotificationsPage() {
   const iconStyle = {
     fontSize: '24px',
     flexShrink: 0,
-    marginTop: '4px'
+    marginTop: '4px',
+    width: '24px', // Set fixed width for alignment
+    height: '24px', // Set fixed height
   }
   const contentStyle = {
     display: 'flex',
@@ -197,15 +201,17 @@ export default function NotificationsPage() {
         </div>
         
         {isLoading && (
-          <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '40px' }}>
-            <div className="animate-spin" style={{ fontSize: '48px', marginBottom: '16px' }}>⏳</div>
+          <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '40px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
+            {/* --- UPDATED --- */}
+            <Loader2 size={48} className="animate-spin" />
             Loading notifications...
           </div>
         )}
 
         {!isLoading && notifications.length === 0 && (
-          <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '40px' }}>
-            <div style={{ fontSize: '48px', marginBottom: '16px' }}>📭</div>
+          <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '40px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
+            {/* --- UPDATED --- */}
+            <Inbox size={48} />
             You have no notifications yet.
           </div>
         )}

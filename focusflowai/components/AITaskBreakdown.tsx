@@ -2,7 +2,8 @@
 "use client"
 
 import { useState } from 'react'
-import { generateSubtasks } from '@/lib/genai' // FIXED: Changed import from lib/gemini to lib/genai
+import { generateSubtasks } from '@/lib/genai'
+import { Bot, AlertTriangle, Loader2 } from 'lucide-react' // <-- IMPORT ICONS
 
 interface AITaskBreakdownProps {
   taskTitle: string
@@ -15,7 +16,6 @@ export default function AITaskBreakdown({ taskTitle, onSubtasksGenerated }: AITa
   const [error, setError] = useState<string>('')
 
   const handleGenerateSubtasks = async () => {
-    // FIXED: Add proper null check for taskTitle
     if (!taskTitle || !taskTitle.trim()) {
       setError('Please enter a task title first')
       return
@@ -64,9 +64,14 @@ export default function AITaskBreakdown({ taskTitle, onSubtasksGenerated }: AITa
           margin: 0,
           fontSize: '16px',
           fontWeight: '600',
-          color: '#1f2937'
+          color: '#1f2937',
+          display: 'flex', // <-- ADDED
+          alignItems: 'center', // <-- ADDED
+          gap: '8px' // <-- ADDED
         }}>
-          🤖 AI Task Breakdown
+          {/* --- UPDATED --- */}
+          <Bot size={18} />
+          AI Task Breakdown
         </h3>
         
         <button
@@ -94,9 +99,14 @@ export default function AITaskBreakdown({ taskTitle, onSubtasksGenerated }: AITa
           padding: '12px',
           borderRadius: '8px',
           marginBottom: '12px',
-          fontSize: '14px'
+          fontSize: '14px',
+          display: 'flex', // <-- ADDED
+          alignItems: 'center', // <-- ADDED
+          gap: '8px' // <-- ADDED
         }}>
-          ⚠️ {error}
+          {/* --- UPDATED --- */}
+          <AlertTriangle size={18} />
+          {error}
         </div>
       )}
 
@@ -161,14 +171,8 @@ export default function AITaskBreakdown({ taskTitle, onSubtasksGenerated }: AITa
           fontSize: '14px',
           marginTop: '8px'
         }}>
-          <div style={{
-            width: '16px',
-            height: '16px',
-            border: '2px solid #e5e7eb',
-            borderTop: '2px solid #3b82f6',
-            borderRadius: '50%',
-            animation: 'spin 1s linear infinite'
-          }} />
+          {/* --- UPDATED --- */}
+          <Loader2 size={16} className="animate-spin" />
           AI is thinking...
         </div>
       )}

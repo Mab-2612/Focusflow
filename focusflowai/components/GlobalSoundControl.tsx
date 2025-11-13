@@ -4,6 +4,7 @@
 import { useSound } from '@/contexts/SoundContext'
 import { useTheme } from '@/components/ThemeContext'
 import { useEffect, useRef, useState } from 'react'
+import { CloudRain, Waves, Trees, Flame, CloudLightning, Droplet, Bird, Wind } from 'lucide-react'
 
 const useSafeTheme = () => {
   try {
@@ -58,6 +59,20 @@ export default function GlobalSoundControl() {
     }
   }, [isSoundPanelOpen, toggleSoundPanel])
 
+  const getSoundIcon = (soundId: string) => {
+    const props = { size: 20, style: { flexShrink: 0 } }
+    switch (soundId) {
+      case 'rain': return <CloudRain {...props} />;
+      case 'waves': return <Waves {...props} />;
+      case 'forest': return <Trees {...props} />;
+      case 'fire': return <Flame {...props} />;
+      case 'thunder': return <CloudLightning {...props} />;
+      case 'stream': return <Droplet {...props} />;
+      case 'birds': return <Bird {...props} />;
+      case 'wind': return <Wind {...props} />;
+      default: return null;
+    }
+  }
 
   const soundButtonStyle = (soundId: string) => ({
     padding: '12px',
@@ -159,7 +174,7 @@ export default function GlobalSoundControl() {
             onClick={() => playSound(sound)}
             style={soundButtonStyle(sound.id)}
           >
-            <span style={{ fontSize: '1.2rem' }}>{sound.emoji}</span>
+            {getSoundIcon(sound.id)}
             <span style={{ flex: 1, textAlign: 'left' }}>{sound.name}</span>
             {selectedSound === sound.id && (
               <span style={{ 

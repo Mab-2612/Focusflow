@@ -1,14 +1,15 @@
 //app/chat/page.tsx
 "use client"
 
-import { useState, useEffect, useRef } from 'react'
+import { Loader2, Frown, Sparkles } from 'lucide-react'
+import { useState, useEffect, useRef, useMemo } from 'react' // Import useMemo
 import { useTheme } from '@/components/ThemeContext'
-import Navbar from '@/components/Navbar' // This should be removed if it's in layout.tsx
 import { useGoogleTTS } from '@/hooks/useGoogleTTS'
 import { useAuth } from '@/hooks/useAuth'
 import { useSidebar } from '@/contexts/SidebarContext'
 import { supabase } from '@/lib/supabase/client'
 import { type User } from '@supabase/supabase-js'
+import { useKeyboardStatus } from '@/hooks/useKeyboardStatus'
 
 // --- Types ---
 interface Message {
@@ -16,6 +17,11 @@ interface Message {
   role: 'user' | 'assistant'
   content: string
   timestamp: Date
+}
+
+interface ApiHistoryItem {
+  role: 'user' | 'model'
+  parts: { text: string }[]
 }
 
 interface ContextMenu {
@@ -44,13 +50,21 @@ export default function ChatPage() {
   const { theme } = useTheme()
   const { user } = useAuth()
   const { toggleSidebar } = useSidebar()
+  const { isKeyboardOpen } = useKeyboardStatus()
   
   const [messages, setMessages] = useState<Message[]>([])
   const [inputText, setInputText] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
-  const [isTtsEnabled, setIsTtsEnabled] = useState(true) 
+  
+  // State for TTS (reads from localStorage)
+  const [isTtsEnabled, setIsTtsEnabled] = useState(true);
+
   const [showClearConfirm, setShowClearConfirm] = useState(false)
   const [isLoadingHistory, setIsLoadingHistory] = useState(true)
+
+  // --- NEW: Search State ---
+  const [showSearch, setShowSearch] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
   
   const [contextMenu, setContextMenu] = useState<ContextMenu>({
     visible: false,
@@ -66,6 +80,17 @@ export default function ChatPage() {
   const tempMessageIdRef = useRef<string | null>(null);
 
   const { speak, stopSpeaking } = useGoogleTTS()
+
+  // --- NEW: Filtered Messages ---
+  // This memo filters messages based on the search term
+  const filteredMessages = useMemo(() => {
+    if (!searchTerm.trim()) {
+      return messages; // Return all messages if search is empty
+    }
+    return messages.filter(msg =>
+      msg.content.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [messages, searchTerm]);
   
   // --- DATA FETCHING & REALTIME ---
 
@@ -93,7 +118,6 @@ export default function ChatPage() {
     } catch (e) {
       console.error('Catastrophic error fetching history:', e);
     } finally {
-      // FIXED: This ensures the loading screen *always* goes away
       setIsLoadingHistory(false);
     }
   };
@@ -123,6 +147,7 @@ export default function ChatPage() {
         (payload) => {
           const newMessage = payload.new as any;
           setMessages(prev => {
+            // (rest of the logic...)
             if (prev.find(msg => msg.id === newMessage.id)) return prev;
 
             if (newMessage.role === 'user' && tempMessageIdRef.current && prev.find(m => m.id === tempMessageIdRef.current)) {
@@ -161,9 +186,12 @@ export default function ChatPage() {
     };
   }, [user]);
 
+  // Scroll to bottom *only* if not searching
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages]);
+    if (!searchTerm) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [filteredMessages, searchTerm]); // Use filteredMessages here
   
   useEffect(() => {
     if (!isProcessing) {
@@ -202,6 +230,12 @@ export default function ChatPage() {
       content: content,
       timestamp: new Date()
     }
+    
+    const historyForAPI: ApiHistoryItem[] = messages.map(msg => ({
+      role: msg.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: msg.content }]
+    }));
+
     addMessage(userMessage);
 
     try {
@@ -212,6 +246,7 @@ export default function ChatPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           message: content, 
+          history: historyForAPI, // Send history
           user_id: user.id,
           timezone: timezone
         })
@@ -224,10 +259,6 @@ export default function ChatPage() {
       
       const assistantResponse = result.response;
       
-      if (isTtsEnabled) {
-        await speak(assistantResponse, () => {})
-      }
-      
       const aiMessage: Message = {
         id: `ai_${Date.now()}`,
         role: 'assistant',
@@ -235,6 +266,10 @@ export default function ChatPage() {
         timestamp: new Date()
       };
       addMessage(aiMessage);
+      
+      if (isTtsEnabled) {
+        speak(assistantResponse, () => {})
+      }
 
     } catch (error) {
       console.error('Error processing message:', error)
@@ -258,12 +293,20 @@ export default function ChatPage() {
     e.preventDefault()
     handleUserMessage(inputText.trim())
   }
+  
+  // Updated TTS toggle to save to localStorage
   const toggleTts = () => {
     if (isTtsEnabled) {
       stopSpeaking()
     }
-    setIsTtsEnabled(!isTtsEnabled)
+    const newState = !isTtsEnabled;
+    setIsTtsEnabled(newState);
+    
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('ttsEnabled', String(newState));
+    }
   }
+
   const clearChat = () => {
     setShowClearConfirm(true);
   }
@@ -314,7 +357,10 @@ export default function ChatPage() {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    flexShrink: 0
+    flexShrink: 0,
+    position: 'sticky' as const,
+    top: 0,
+    zIndex: 900
   }
   const titleStyle = {
     fontSize: 'var(--font-lg)',
@@ -332,17 +378,18 @@ export default function ChatPage() {
     flex: 1,
     display: 'flex',
     flexDirection: 'column' as const,
-    overflow: 'hidden'
+    overflowY: 'auto'
   }
   const messagesStyle = {
     paddingTop: '20px',
     display: 'flex',
     flexDirection: 'column' as const,
-    gap: '12px'
+    gap: '12px',
+    paddingBottom: '50px' // Added padding for scroll
   }
   const floatingInputContainerStyle = {
     position: 'sticky' as const,
-    bottom: '80px',
+    bottom: isKeyboardOpen ? '0px' : '80px',
     left: '0',
     right: '0',
     padding: '16px 24px 8px 24px',
@@ -350,7 +397,8 @@ export default function ChatPage() {
     backgroundColor: 'var(--bg-primary)',
     background: `linear-gradient(to top, var(--bg-primary) 80px, transparent 100%)`,
     zIndex: 999,
-    flexShrink: 0
+    flexShrink: 0,
+    transition: 'bottom 0.2s ease-out'
   }
   const textInputWrapperStyle = {
     display: 'flex',
@@ -434,6 +482,30 @@ export default function ChatPage() {
     padding: '8px',
     animation: 'fadeIn 0.1s ease-out'
   }
+  
+  // --- NEW: Search Bar Styles ---
+  const searchBarStyle = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    padding: '8px 16px',
+    backgroundColor: 'var(--bg-secondary)',
+    borderBottom: `1px solid var(--border-light)`,
+    flexShrink: 0,
+    position: 'sticky' as const,
+    top: '65px', // Stick below the main header
+    zIndex: 899 // Below header, above content
+  }
+  const searchInputStyle = {
+    flex: 1,
+    padding: '8px 12px',
+    border: `1px solid var(--border-light)`,
+    borderRadius: 'var(--radius-md)',
+    backgroundColor: 'var(--bg-primary)',
+    color: 'var(--text-primary)',
+    fontSize: '14px',
+    outline: 'none',
+  }
 
   return (
     <div style={containerStyle} className="chat-page-container">
@@ -449,6 +521,21 @@ export default function ChatPage() {
 
         <h1 style={titleStyle}>FocusFlow Chat</h1>
         
+        {/* --- NEW: Search Button --- */}
+        <button
+          onClick={() => setShowSearch(prev => !prev)}
+          style={{
+            ...headerButtonStyle, 
+            color: showSearch ? (theme === 'dark' ? '#60a5fa' : '#3b82f6') : (theme === 'dark' ? '#9ca3af' : '#6b7280')
+          }}
+          title="Search conversation"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+        </button>
+
         <button
           onClick={toggleTts}
           style={{
@@ -457,9 +544,47 @@ export default function ChatPage() {
           }}
           title={isTtsEnabled ? 'Disable Voice Output' : 'Enable Voice Output'}
         >
-          {isTtsEnabled ? '🔊' : '🔇'}
+          {isTtsEnabled ? (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+              <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+            </svg>
+          ) : (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+              <line x1="23" y1="9" x2="17" y2="15"></line>
+              <line x1="17" y1="9" x2="23" y2="15"></line>
+            </svg>
+          )}
         </button>
       </header>
+
+      {/* --- NEW: Search Bar --- */}
+      {showSearch && (
+        <div style={searchBarStyle}>
+          <input
+            type="text"
+            placeholder="Search conversation..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            style={searchInputStyle}
+            autoFocus
+          />
+          <button
+            onClick={() => {
+              setShowSearch(false);
+              setSearchTerm('');
+            }}
+            style={{...headerButtonStyle, color: 'var(--text-tertiary)'}}
+            title="Close search"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+      )}
 
       <div 
         className="page-container chat-messages-wrapper"
@@ -469,14 +594,16 @@ export default function ChatPage() {
           
           {(isLoadingHistory && messages.length === 0) && (
             <div className="chat-welcome-message">
-              <div className="animate-spin" style={{ fontSize: '48px', marginBottom: '16px' }}>⏳</div>
+              <Loader2 size={48} className="animate-spin" style={{ marginBottom: '16px' }} />
               Loading chat history...
             </div>
           )}
 
           {(!isLoadingHistory && messages.length === 0) && (
             <div className="chat-welcome-message">
-              <span style={{ fontSize: '64px', marginBottom: '16px' }}>💬</span>
+              <span style={{ fontSize: '64px', marginBottom: '16px', color: 'var(--accent-primary)' }}>
+                <Sparkles size={64} />
+              </span>
               <h2 style={{ color: 'var(--text-primary)', fontSize: 'var(--font-lg)', marginBottom: '8px' }}>
                 {user ? "Ask me anything!" : "Please Sign In"}
               </h2>
@@ -486,7 +613,23 @@ export default function ChatPage() {
             </div>
           )}
 
-          {messages.map((message) => (
+          {/* --- NEW: No Search Results Message --- */}
+          {(!isLoadingHistory && messages.length > 0 && filteredMessages.length === 0) && (
+            <div className="chat-welcome-message" style={{minHeight: '100px', paddingTop: '20px', paddingBottom: '20px'}}>
+              <span style={{ fontSize: '48px', marginBottom: '16px' }}>
+                <Frown size={48} />
+              </span>
+              <h2 style={{ color: 'var(--text-primary)', fontSize: 'var(--font-lg)', marginBottom: '8px' }}>
+                No Results Found
+              </h2>
+              <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--font-sm)', textAlign: 'center' }}>
+                No messages match your search for "{searchTerm}".
+              </p>
+            </div>
+          )}
+
+          {/* --- UPDATED: Use filteredMessages --- */}
+          {filteredMessages.map((message) => (
             <div 
               key={message.id} 
               className={`message-bubble ${message.role === 'user' ? 'message-user' : 'message-assistant'}`}
@@ -506,7 +649,7 @@ export default function ChatPage() {
       </div>
 
       <div style={floatingInputContainerStyle}> 
-        {messages.length > 0 && (
+        {messages.length > 0 && !showSearch && ( // Hide clear button when searching
           <div style={clearChatContainerStyle}>
             <button
               onClick={clearChat}
@@ -536,16 +679,7 @@ export default function ChatPage() {
               title="Send Message"
             >
               {isProcessing ? 
-                <div 
-                  className="animate-spin"
-                  style={{
-                    width: '18px',
-                    height: '18px',
-                    border: '2px solid rgba(255,255,255,0.3)',
-                    borderTop: '2px solid white',
-                    borderRadius: '50%',
-                  }}
-                /> : 
+                <Loader2 size={18} className="animate-spin" /> : 
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style={{ marginLeft: '2px' }}>
                   <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
                 </svg>
@@ -592,8 +726,6 @@ export default function ChatPage() {
           </div>
         </div>
       )}
-
-      {/* Navbar is in layout.tsx */}
     </div>
   )
 }

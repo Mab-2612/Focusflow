@@ -4,9 +4,21 @@ import { createClient } from '@supabase/supabase-js'
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' })
 
+// **FIX: Define the type for the incoming history**
+interface ApiHistoryItem {
+  role: 'user' | 'model'
+  parts: { text: string }[]
+}
+
 export async function POST(request: Request) {
   try {
-    const { message, user_id, timezone } = await request.json()
+    // **FIX: Receive 'history' from the request body**
+    const { message, history, user_id, timezone } = (await request.json()) as {
+      message: string;
+      history: ApiHistoryItem[];
+      user_id: string;
+      timezone: string;
+    };
 
     if (!user_id || !message) {
       return Response.json({ error: 'Missing user_id or message' }, { status: 400 })
@@ -28,45 +40,34 @@ export async function POST(request: Request) {
       }
     )
     
-    // 1. Save user message to database (don't wait)
-    const saveUserMessagePromise = supabaseAdmin
+    // 1. Save user message (don't wait)
+    supabaseAdmin
       .from('chat_messages')
       .insert({
         user_id: user_id,
         role: 'user',
         content: message
       })
+      .then(({ error }) => {
+        if (error) console.error('Error saving user message:', error)
+      });
 
     // 2. Get response from Gemini AI
     const now = new Date();
     const systemPrompt = `You are a helpful assistant. The user is in the ${timezone || 'UTC'} timezone. The current date and time is: ${now.toLocaleString("en-US", { timeZone: timezone || 'UTC', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' })}. Answer all time/date-related questions based on this information. Format responses with markdown (bold, italics, lists).`;
     
-    // FIXED: The 'contents' format was wrong. It must be a Content array.
-    // Also, use your preferred model name
-    const geminiPromise = ai.models.generateContent({
-      model: 'gemini-1.5-flash-preview-09-2025', 
+    // **FIX: Construct the full conversation history for the AI**
+    const geminiResponse = await ai.models.generateContent({
+      model: 'gemini-2.5-flash', 
       contents: [
         { role: 'user', parts: [{ text: systemPrompt }] },
         { role: 'model', parts: [{ text: "Understood. I'll be aware of the user's time and date." }] },
-        { role: 'user', parts: [{ text: message }] }
+        ...history, // <-- **FIX: Spread the provided history**
+        { role: 'user', parts: [{ text: message }] } // <-- Add the new message
       ]
     })
 
-    const [geminiResult, userMsgResult] = await Promise.allSettled([
-      geminiPromise,
-      saveUserMessagePromise
-    ])
-
-    if (userMsgResult.status === 'rejected') {
-      console.error('Error saving user message:', userMsgResult.reason)
-      return Response.json({ error: 'Failed to save user message' }, { status: 500 })
-    }
-    if (geminiResult.status === 'rejected') {
-      console.error('Error from Gemini:', geminiResult.reason)
-      return Response.json({ error: 'Failed to get response from AI' }, { status: 500 })
-    }
-
-    const text = geminiResult.value.text
+    const text = geminiResponse.text
 
     // 3. Save assistant response (don't wait)
     supabaseAdmin

@@ -64,7 +64,14 @@ export const useGoogleTTS = () => {
     utterance.lang = bestVoice.lang
     utterance.rate = rate
     utterance.pitch = pitch
-    utterance.onerror = onError
+    utterance.onerror = (e: SpeechSynthesisErrorEvent) => {
+      // Don't log an error if it's just an intentional interruption
+      if (e.error === 'interrupted') {
+        return;
+      }
+      // Log all other *real* errors
+      onError(e);
+    };
     utterance.onend = onEnd
     
     window.speechSynthesis.speak(utterance)

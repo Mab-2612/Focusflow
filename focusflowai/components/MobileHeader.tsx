@@ -1,7 +1,7 @@
 // components/MobileHeader.tsx
 "use client"
 
-import { useTheme } from "./ThemeContext"
+import { useTheme } from "@/components/ThemeContext"
 import { usePathname } from 'next/navigation'
 import { useSidebar } from '@/contexts/SidebarContext' // Import new hook
 

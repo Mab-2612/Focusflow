@@ -1,9 +1,10 @@
 //app/onboarding/page.tsx
 "use client"
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react' // <-- 1. IMPORT useEffect
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
+import { useAuth } from '@/hooks/useAuth' // <-- 2. IMPORT useAuth
 
 export default function OnboardingPage() {
   const [isLogin, setIsLogin] = useState(true)
@@ -14,10 +15,21 @@ export default function OnboardingPage() {
   const [error, setError] = useState('')
   const router = useRouter()
 
+  const { user, loading } = useAuth() // <-- 3. USE THE HOOK
+
   // Add password reset states
   const [showResetPassword, setShowResetPassword] = useState(false)
   const [resetEmail, setResetEmail] = useState('')
   const [resetStatus, setResetStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle')
+
+  // --- 4. ADD THIS EFFECT ---
+  // This handles redirecting a logged-in user away from this page
+  useEffect(() => {
+    if (!loading && user) {
+      router.push('/dashboard')
+    }
+  }, [user, loading, router])
+  // --- END OF NEW EFFECT ---
 
   const containerStyle = {
     minHeight: '100vh',
@@ -28,6 +40,7 @@ export default function OnboardingPage() {
     padding: '16px'
   }
 
+  // ... (All other styles and functions in this file remain exactly the same) ...
   const cardStyle = {
     backgroundColor: '#ffffff',
     borderRadius: '16px',
@@ -243,6 +256,18 @@ export default function OnboardingPage() {
       setResetStatus('error')
     }
   }
+
+  // --- 5. ADD THIS LOADING/NULL CHECK ---
+  // This prevents the page from flashing while the redirect is happening
+  if (loading || user) {
+    return (
+      <div style={containerStyle}>
+        {/* You can put a loading spinner here if you want */}
+      </div>
+    );
+  }
+  // --- END OF NEW LOADING CHECK ---
+
 
   return (
     <div style={containerStyle}>

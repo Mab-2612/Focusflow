@@ -7,6 +7,7 @@ import { useTheme } from '@/components/ThemeContext'
 import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/lib/supabase/client'
+import { Rocket, Coffee, Wind, HelpCircle, Timer } from 'lucide-react'
 
 export default function PomodoroPage() {
   const { theme } = useTheme()
@@ -88,6 +89,13 @@ export default function PomodoroPage() {
     }
   }
 
+  // --- UPDATED: Icon style
+  const iconSpanStyle = { 
+    display: 'inline-block', 
+    verticalAlign: 'middle', 
+    marginRight: '8px' 
+  }
+
   return (
     <div 
       className="page-container"
@@ -98,7 +106,6 @@ export default function PomodoroPage() {
         alignItems: 'center',
         justifyContent: 'center',
         position: 'relative',
-        // FIXED: Vertical centering styles
         minHeight: 'calc(100vh - 140px)', // 80px nav + 60px header
         paddingTop: '0',
         paddingBottom: '0'
@@ -131,7 +138,8 @@ export default function PomodoroPage() {
           }}
           title="How it works"
         >
-          ?
+          {/* --- UPDATED --- */}
+          <HelpCircle size={18} />
         </button>
       </div>
       
@@ -157,7 +165,9 @@ export default function PomodoroPage() {
             marginBottom: '12px',
             fontSize: '16px'
           }}>
-            🍅 Your Pomodoro
+            {/* --- UPDATED --- */}
+            <span style={iconSpanStyle}><Timer size={16} /></span>
+            Your Pomodoro
           </h3>
           <div style={{ 
             color: theme === 'dark' ? '#9ca3af' : '#6b7280', 

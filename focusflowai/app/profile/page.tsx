@@ -21,7 +21,7 @@ export default function ProfilePage() {
   
   // Theme-aware styles
   const containerStyle = {
-    minHeight: '100vh',
+    minHeight: '90vh',
     backgroundColor: theme === 'dark' ? '#111827' : '#f9fafb',
     color: theme === 'dark' ? '#f3f4f6' : '#1f2937',
     transition: 'background-color 0.3s ease, color 0.3s ease'

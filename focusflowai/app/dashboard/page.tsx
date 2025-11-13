@@ -1,6 +1,7 @@
 // app/dashboard/page.tsx
 "use client"
 
+import { Target, Loader2, Zap, Star, Clock, Trash2, ChevronUp, ChevronDown } from 'lucide-react'
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useTheme } from '@/components/ThemeContext'
 import Navbar from '@/components/Navbar'
@@ -334,7 +335,7 @@ export default function DashboardPage() {
             marginBottom: '16px',
             color: theme === 'dark' ? '#f3f4f6' : '#374151'
           }}>
-            ⏳
+            <Loader2 size={32} className="animate-spin" />
           </div>
           <p style={{ color: theme === 'dark' ? '#f3f4f6' : '#374151' }}>
             Loading your dashboard...
@@ -379,8 +380,9 @@ export default function DashboardPage() {
       >
         {/* Welcome Card with Stats */}
         <div style={focusCardStyle}>
-          <h2 style={focusTitleStyle}>
-            {user ? `🎯 Welcome back, ${getUserDisplayName(user)}!` : 'Welcome to FocusFlow!'}
+          <h2 style={{...focusTitleStyle, display: 'flex', alignItems: 'center', gap: '10px'}}>
+            <Target size={24} />
+            {user ? `Welcome back, ${getUserDisplayName(user)}!` : 'Welcome to FocusFlow!'}
           </h2>
           <p style={focusTextStyle}>
             {user ? `You have ${tasks.urgent.length} urgent tasks, ${tasks.important.length} important tasks, and ${tasks.later.length} tasks for later.` : 'Please sign in to manage your tasks.'}
@@ -487,7 +489,10 @@ export default function DashboardPage() {
                 gap: '8px'
               }}
             >
-              {showTaskSections ? '▼ Hide Tasks' : '▲ Show Tasks'}
+              {showTaskSections ? 
+                <><ChevronDown size={16} /> Hide Tasks</> : 
+                <><ChevronUp size={16} /> Show Tasks</>
+              }
             </button>
           )}
           
@@ -519,7 +524,7 @@ export default function DashboardPage() {
             {/* Urgent Tasks */}
             <div style={taskCategoryStyle}>
               <h3 style={categoryTitleStyle('#dc2626')}>
-                <span style={{ fontSize: '20px' }}>🔥</span>
+                <Zap size={20} />
                 Urgent ({tasks.urgent.length})
               </h3>
               <div style={taskListStyle}>
@@ -539,7 +544,7 @@ export default function DashboardPage() {
                       style={deleteButtonStyle}
                       title="Delete task"
                     >
-                      🗑️
+                      <Trash2 size={16} />
                     </button>
                   </div>
                 ))}
@@ -552,7 +557,7 @@ export default function DashboardPage() {
             {/* Important Tasks */}
             <div style={taskCategoryStyle}>
               <h3 style={categoryTitleStyle('#ea580c')}>
-                <span style={{ fontSize: '20px' }}>⭐</span>
+                <Star size={20} />
                 Important ({tasks.important.length})
               </h3>
               <div style={taskListStyle}>
@@ -572,7 +577,7 @@ export default function DashboardPage() {
                       style={deleteButtonStyle}
                       title="Delete task"
                     >
-                      🗑️
+                      <Trash2 size={16} />
                     </button>
                   </div>
                 ))}
@@ -585,7 +590,7 @@ export default function DashboardPage() {
             {/* Later Tasks */}
             <div style={taskCategoryStyle}>
               <h3 style={categoryTitleStyle('#16a34a')}>
-                <span style={{ fontSize: '20px' }}>⏰</span>
+                <Clock size={20} />
                 Later ({tasks.later.length})
               </h3>
               <div style={taskListStyle}>
@@ -605,7 +610,7 @@ export default function DashboardPage() {
                       style={deleteButtonStyle}
                       title="Delete task"
                     >
-                      🗑️
+                      <Trash2 size={16} />
                     </button>
                   </div>
                 ))}

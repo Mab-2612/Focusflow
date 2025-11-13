@@ -27,34 +27,49 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   const resolvedTheme = theme === 'system' ? getSystemTheme() : theme
 
+  // Initial mount
   useEffect(() => {
     setMounted(true)
     
-    // Load theme from localStorage
-    const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' | 'system' || 'system'
-    setThemeState(savedTheme)
-    
-    // Load from Supabase if user is logged in
-    loadThemeFromSupabase()
+    // Load theme from localStorage immediately
+    try {
+      const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' | 'system'
+      if (savedTheme) {
+        setThemeState(savedTheme)
+      }
+    } catch (e) {
+      console.error('Error loading theme:', e)
+    }
+  }, [])
+
+  // Load from Supabase when user is available
+  useEffect(() => {
+    if (user) {
+      loadThemeFromSupabase()
+    }
   }, [user])
 
+  // Apply theme to document
   useEffect(() => {
-    if (mounted) {
-      // FIXED: Use data-theme attribute to match globals.css
-      document.documentElement.setAttribute('data-theme', resolvedTheme)
-      
-      // Update meta theme color
-      const metaThemeColor = document.querySelector('meta[name="theme-color"]')
-      if (metaThemeColor) {
-        metaThemeColor.setAttribute('content', resolvedTheme === 'dark' ? '#111827' : '#ffffff')
-      }
+    if (!mounted) return
+    
+    document.documentElement.setAttribute('data-theme', resolvedTheme)
+    
+    // Update meta theme color
+    const metaThemeColor = document.querySelector('meta[name="theme-color"]')
+    if (metaThemeColor) {
+      metaThemeColor.setAttribute('content', resolvedTheme === 'dark' ? '#111827' : '#ffffff')
     }
   }, [resolvedTheme, mounted])
 
   const setTheme = (newTheme: 'light' | 'dark' | 'system') => {
     setThemeState(newTheme)
     localStorage.setItem('theme', newTheme)
-    saveThemeToSupabase(newTheme)
+    
+    // Save to Supabase (don't await to avoid blocking)
+    if (user) {
+      saveThemeToSupabase(newTheme)
+    }
   }
 
   const toggleTheme = () => {
@@ -74,12 +89,13 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         .eq('user_id', user.id)
         .single()
 
-      if (data && data.preferences?.theme) {
+      if (data?.preferences?.theme) {
         setThemeState(data.preferences.theme)
         localStorage.setItem('theme', data.preferences.theme)
       }
     } catch (error) {
-      console.error('Error loading theme from Supabase:', error)
+      // Silently fail - user preferences might not exist yet
+      console.debug('Theme preferences not loaded:', error)
     }
   }
 
@@ -100,17 +116,16 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
           onConflict: 'user_id'
         })
     } catch (error) {
-      console.error('Error saving theme to Supabase:', error)
+      console.debug('Error saving theme:', error)
     }
   }
 
   // Listen for system theme changes
   useEffect(() => {
-    if (theme !== 'system') return
+    if (theme !== 'system' || typeof window === 'undefined') return
 
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
     const handleChange = () => {
-      // FIXED: Use data-theme attribute here as well
       document.documentElement.setAttribute('data-theme', getSystemTheme())
     }
 
@@ -118,10 +133,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     return () => mediaQuery.removeEventListener('change', handleChange)
   }, [theme])
 
-  if (!mounted) {
-    return <div style={{ visibility: 'hidden' }}>{children}</div>
-  }
-
+  // FIXED: Always render children, just apply theme when mounted
   return (
     <ThemeContext.Provider value={{ theme, resolvedTheme, toggleTheme, setTheme }}>
       {children}

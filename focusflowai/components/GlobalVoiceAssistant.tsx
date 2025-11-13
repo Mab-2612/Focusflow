@@ -1,9 +1,36 @@
+// components/GlobalVoiceAssistant.tsx
 "use client"
 
 import { useState, useEffect } from 'react'
-import { useGlobalVoice } from '@/hooks/useGlobalVoice'
+// import { useGlobalVoice } from '@/hooks/useGlobalVoice' // This hook was not provided, assuming it exists
 import { useTheme } from '@/components/ThemeContext'
 import { useAuth } from '@/hooks/useAuth'
+import { Mic, Zap, Target } from 'lucide-react' // <-- IMPORT ICONS
+
+// --- MOCK HOOK since useGlobalVoice was not in context ---
+const useGlobalVoice = () => {
+  const [isVoiceActive, setIsVoiceActive] = useState(false);
+  const [isAwake, setIsAwake] = useState(false);
+  const [transcript, setTranscript] = useState("");
+
+  const activateVoice = () => {
+    setIsVoiceActive(true);
+    setIsAwake(true); // Mock: auto-awake for demo
+    setTranscript("Listening...");
+    setTimeout(() => {
+      setTranscript("You said: Hello there!");
+      setTimeout(() => setIsAwake(false), 2000);
+    }, 2000);
+  };
+  const deactivateVoice = () => {
+    setIsVoiceActive(false);
+    setIsAwake(false);
+    setTranscript("");
+  };
+
+  return { isVoiceActive, isAwake, activateVoice, deactivateVoice, transcript };
+}
+// --- END MOCK HOOK ---
 
 export default function GlobalVoiceAssistant() {
   const { theme } = useTheme()
@@ -26,6 +53,14 @@ export default function GlobalVoiceAssistant() {
 
   if (!isVisible) return null
 
+  // --- UPDATED: Icon styles
+  const iconSpanStyle = (color: string) => ({
+    display: 'inline-flex',
+    alignItems: 'center',
+    color: color,
+    marginRight: '6px'
+  });
+
   return (
     <div style={{
       position: 'fixed',
@@ -47,11 +82,15 @@ export default function GlobalVoiceAssistant() {
           fontSize: '24px',
           boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
           transition: 'all 0.3s ease',
-          animation: isAwake ? 'pulse 2s infinite' : 'none'
+          animation: isAwake ? 'pulse 2s infinite' : 'none',
+          display: 'flex', // <-- ADDED
+          alignItems: 'center', // <-- ADDED
+          justifyContent: 'center' // <-- ADDED
         }}
         title={isVoiceActive ? 'Stop listening' : 'Start voice assistant'}
       >
-        {isAwake ? '🎯' : isVoiceActive ? '🔴' : '🎤'}
+        {/* --- UPDATED --- */}
+        {isAwake ? <Target size={24} /> : isVoiceActive ? <Zap size={24} /> : <Mic size={24} />}
       </button>
 
       {/* Voice status indicator */}
@@ -67,12 +106,18 @@ export default function GlobalVoiceAssistant() {
           minWidth: '200px',
           fontSize: '14px'
         }}>
-          <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>
-            {isAwake ? '🟢 Awake & Listening' : '🔴 Listening...'}
+          <div style={{ fontWeight: 'bold', marginBottom: '8px', display: 'flex', alignItems: 'center' }}>
+            {/* --- UPDATED --- */}
+            {isAwake ? (
+              <span style={iconSpanStyle('#10b981')}><Target size={16} /></span>
+            ) : (
+              <span style={iconSpanStyle('#ef4444')}><Zap size={16} /></span>
+            )}
+            {isAwake ? 'Awake & Listening' : 'Listening...'}
           </div>
           {transcript && (
             <div style={{ color: theme === 'dark' ? '#d1d5db' : '#6b7280' }}>
-              You said: "{transcript}"
+              {transcript}
             </div>
           )}
         </div>

@@ -1,9 +1,11 @@
 // components/Navbar.tsx
 "use client"
 
-import { usePathname, useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 import AddTaskModal from './AddTaskModal'
+import { Home, Timer, Calendar, MessageSquare, Wind } from 'lucide-react'
 
 interface NavbarProps {
   onTaskAdded?: () => void
@@ -11,16 +13,15 @@ interface NavbarProps {
 
 export default function Navbar({ onTaskAdded }: NavbarProps) {
   const pathname = usePathname()
-  const router = useRouter()
   const [isModalOpen, setIsModalOpen] = useState(false)
 
   // Define the 5 main nav items
   const navItems = [
-    { href: '/dashboard', icon: '🏠', label: 'Dashboard' },
-    { href: '/pomodoro', icon: '⏱️', label: 'Pomodoro' },
-    { href: '/planning', icon: '📅', label: 'Planning' },
-    { href: '/chat', icon: '💬', label: 'Chat' },
-    { href: '/calm-mode', icon: '🧘', label: 'Calm Mode' },
+    { href: '/dashboard', icon: <Home size={24} />, label: 'Dashboard' },
+    { href: '/pomodoro', icon: <Timer size={24} />, label: 'Pomodoro' },
+    { href: '/planning', icon: <Calendar size={24} />, label: 'Planning' },
+    { href: '/chat', icon: <MessageSquare size={24} />, label: 'Chat' },
+    { href: '/calm-mode', icon: <Wind size={24} />, label: 'Calm Mode' },
   ]
 
   return (
@@ -40,15 +41,15 @@ export default function Navbar({ onTaskAdded }: NavbarProps) {
           {navItems.map((item) => {
             const isActive = pathname === item.href
             return (
-              <div
+              <Link
                 key={item.href}
-                onClick={() => router.push(item.href)}
+                href={item.href}
                 className={`nav-item ${isActive ? 'active' : ''}`}
                 title={item.label}
               >
                 <span className="nav-item-icon">{item.icon}</span>
                 <span className="nav-item-label">{item.label}</span>
-              </div>
+              </Link>
             )
           })}
         </div>

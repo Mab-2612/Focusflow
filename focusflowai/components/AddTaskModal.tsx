@@ -6,7 +6,7 @@ import { taskService } from '@/services/taskService'
 import { useAuth } from '@/hooks/useAuth'
 import AITaskBreakdown from './AITaskBreakdown'
 import TaskCategories from './TaskCategories'
-import { useTheme } from './ThemeContext' // Import useTheme
+import { useTheme } from '@/components/ThemeContext'
 
 interface AddTaskModalProps {
   isOpen: boolean
