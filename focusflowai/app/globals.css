@@ -766,7 +766,6 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   display: flex;
   flex-direction: column;
   /* Prevent the whole page from scrolling */
-  overflow: hidden; 
 }
 
 .chat-messages-wrapper {

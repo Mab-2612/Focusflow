@@ -409,7 +409,7 @@ export default function ChatPage() {
     flexDirection: 'column' as const,
     overflowY: 'auto',
     // Dynamic padding to shrink gap with keyboard
-    paddingBottom: isKeyboardOpen ? '8px' : '24px'
+    paddingBottom: isKeyboardOpen ? '5px' : '24px'
   }
   const messagesStyle = {
     paddingTop: '20px',
@@ -425,7 +425,7 @@ export default function ChatPage() {
     left: '0',
     right: '0',
     // Dynamic top padding
-    paddingTop: isKeyboardOpen ? '8px' : '16px',
+    paddingTop: isKeyboardOpen ? '6px' : '16px',
     paddingLeft: '24px',
     paddingRight: '24px',
     paddingBottom: 'max(16px, env(safe-area-inset-bottom))',
