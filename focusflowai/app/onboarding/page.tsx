@@ -1,98 +1,129 @@
-//app/onboarding/page.tsx
+// app/onboarding/page.tsx
 "use client"
 
-import { useState, useEffect } from 'react' // <-- 1. IMPORT useEffect
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
-import { useAuth } from '@/hooks/useAuth' // <-- 2. IMPORT useAuth
+import { useAuth } from '@/hooks/useAuth'
+import { useTheme } from '@/components/ThemeContext'
+import { Eye, EyeOff, Loader2, Moon, Sun } from 'lucide-react'
 
 export default function OnboardingPage() {
   const [isLogin, setIsLogin] = useState(true)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('') // <-- NEW: Confirm password state
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const router = useRouter()
+  const { theme, setTheme, resolvedTheme } = useTheme()
+  const { user, loading: authLoading } = useAuth()
 
-  const { user, loading } = useAuth() // <-- 3. USE THE HOOK
-
-  // Add password reset states
   const [showResetPassword, setShowResetPassword] = useState(false)
   const [resetEmail, setResetEmail] = useState('')
   const [resetStatus, setResetStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle')
 
-  // --- 4. ADD THIS EFFECT ---
-  // This handles redirecting a logged-in user away from this page
+  // Redirect if user is already logged in
   useEffect(() => {
-    if (!loading && user) {
+    if (!authLoading && user) {
       router.push('/dashboard')
     }
-  }, [user, loading, router])
-  // --- END OF NEW EFFECT ---
+  }, [user, authLoading, router])
+
+  const handleEmailSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsLoading(true)
+    setError('')
+    
+    try {
+      if (isLogin) {
+        // --- Sign In Logic ---
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+        if (error) throw error
+        if (data.user) router.push('/dashboard')
+      } else {
+        // --- Sign Up Logic ---
+        // <-- NEW: Check if passwords match -->
+        if (password !== confirmPassword) {
+          setError('Passwords do not match')
+          setIsLoading(false)
+          return
+        }
+        
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+        })
+        if (error) throw error
+        if (data.user) setError('Check your email for the confirmation link.')
+      }
+    } catch (err: any) {
+      setError(err.message || 'Authentication failed.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handlePasswordReset = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!resetEmail.trim()) return
+    
+    setResetStatus('sending')
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail.trim(), {
+        redirectTo: `${window.location.origin}/auth/update-password`,
+      })
+      if (error) throw error
+      setResetStatus('success')
+    } catch (error: any) {
+      console.error('Password reset failed:', error)
+      setResetStatus('error')
+    }
+  }
+
+  // --- STYLES ---
 
   const containerStyle = {
-    minHeight: '100vh',
+    minHeight: '100%',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    background: 'linear-gradient(135deg, #eff6ff 0%, #e0e7ff 100%)',
+    backgroundColor: theme === 'dark' ? '#111827' : '#f9fafb',
+    backgroundImage: theme === 'dark' 
+      ? 'linear-gradient(135deg, #111827 0%, #1f2937 100%)' 
+      : 'linear-gradient(135deg, #f9fafb 0%, #eef2ff 100%)',
     padding: '16px'
   }
 
-  // ... (All other styles and functions in this file remain exactly the same) ...
   const cardStyle = {
-    backgroundColor: '#ffffff',
-    borderRadius: '16px',
-    boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1)',
+    backgroundColor: 'var(--bg-primary)',
+    borderRadius: 'var(--radius-lg)',
+    boxShadow: 'var(--shadow-lg)',
     padding: '32px',
-    maxWidth: '448px',
+    maxWidth: '400px',
     width: '100%',
-    textAlign: 'center' as const
-  }
-
-  const headerStyle = {
-    marginBottom: '32px'
+    textAlign: 'center' as const,
+    border: `1px solid var(--border-light)`,
+    position: 'relative' as const
   }
 
   const titleStyle = {
-    fontSize: '24px',
-    fontWeight: 'bold',
-    color: '#1f2937',
+    fontSize: 'var(--font-xl)',
+    fontWeight: '700',
+    color: 'var(--text-primary)',
     marginBottom: '8px'
   }
 
   const subtitleStyle = {
-    color: '#4b5563'
-  }
-
-  const googleButtonStyle = {
-    width: '100%',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '12px',
-    backgroundColor: '#ffffff',
-    border: '1px solid #d1d5db',
-    borderRadius: '12px',
-    padding: '12px 16px',
-    color: '#374151',
-    cursor: 'pointer',
-    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
-    marginBottom: '16px'
-  }
-
-  const disclaimerStyle = {
-    fontSize: '14px',
-    color: '#6b7280',
-    textAlign: 'center' as const,
-    marginBottom: '24px'
+    color: 'var(--text-secondary)',
+    marginBottom: '32px',
+    fontSize: 'var(--font-sm)'
   }
 
   const formStyle = {
-    marginTop: '24px',
-    paddingTop: '24px',
-    borderTop: '1px solid #e5e7eb'
+    marginTop: '24px'
   }
 
   const inputGroupStyle = {
@@ -103,199 +134,120 @@ export default function OnboardingPage() {
 
   const labelStyle = {
     display: 'block',
-    fontSize: '14px',
+    fontSize: 'var(--font-sm)',
     fontWeight: '500',
-    color: '#374151',
-    marginBottom: '4px'
+    color: 'var(--text-primary)',
+    marginBottom: '8px'
   }
 
   const inputStyle = {
     width: '100%',
-    padding: '10px 40px 10px 12px',
-    border: '1px solid #d1d5db',
-    borderRadius: '8px',
+    padding: '12px 16px',
+    border: `1px solid var(--border-medium)`,
+    borderRadius: 'var(--radius-md)',
     fontSize: '16px',
     boxSizing: 'border-box' as const,
-    height: '44px'
+    height: '48px',
+    backgroundColor: 'var(--bg-secondary)',
+    color: 'var(--text-primary)',
+    outline: 'none',
   }
 
   const passwordToggleStyle = {
     position: 'absolute' as const,
     right: '12px',
-    top: '50%',
-    transform: 'translateY(-50%)',
+    top: '44px',
     cursor: 'pointer',
-    color: '#6b7280',
+    color: 'var(--text-tertiary)', // <-- FIXED: Use CSS variable
     backgroundColor: 'transparent',
     border: 'none',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: '20px',
-    width: '20px'
+    padding: '4px'
   }
 
   const submitButtonStyle = {
     width: '100%',
-    backgroundColor: '#2563eb',
+    backgroundColor: 'var(--accent-primary)',
     color: 'white',
     border: 'none',
-    borderRadius: '8px',
+    borderRadius: 'var(--radius-md)',
     padding: '12px 16px',
     fontSize: '16px',
     fontWeight: '600',
     cursor: 'pointer',
     marginBottom: '16px',
+    height: '48px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
     opacity: isLoading ? 0.7 : 1
   }
 
   const toggleAuthStyle = {
-    fontSize: '14px',
-    color: '#6b7280',
+    fontSize: 'var(--font-sm)',
+    color: 'var(--text-tertiary)',
     textAlign: 'center' as const
   }
 
   const linkStyle = {
-    color: '#2563eb',
+    color: 'var(--accent-primary)',
     fontWeight: '500',
     cursor: 'pointer'
   }
 
   const errorStyle = {
-    color: '#ef4444',
-    fontSize: '14px',
-    marginBottom: '16px'
+    color: 'var(--accent-danger)',
+    backgroundColor: theme === 'dark' ? 'rgba(239, 68, 68, 0.1)' : '#fef2f2',
+    border: `1px solid ${theme === 'dark' ? '#ef4444' : '#fecaca'}`,
+    fontSize: 'var(--font-sm)',
+    marginBottom: '16px',
+    padding: '10px 12px',
+    borderRadius: 'var(--radius-md)',
+    textAlign: 'left' as const
   }
 
-  const handleEmailSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
-    setError('')
-    
-    try {
-      if (isLogin) {
-        // Sign in
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        })
-        
-        if (error) {
-          setError(error.message)
-          return
-        }
-        
-        if (data.user) {
-          router.push('/dashboard')
-        }
-      } else {
-        // Sign up
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            emailRedirectTo: `${window.location.origin}/auth/callback`,
-          },
-        })
-        
-        if (error) {
-          setError(error.message)
-          return
-        }
-        
-        if (data.user) {
-          setError('Check your email for the confirmation link.')
-        }
-      }
-    } catch (err) {
-      setError('Authentication failed. Please try again.')
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const handleGoogleSignIn = async () => {
-    setIsLoading(true)
-    try {
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
-        },
-      })
-      
-      if (error) {
-        setError(error.message)
-        setIsLoading(false)
-      }
-    } catch (err) {
-      setError('Google authentication failed. Please try again.')
-      setIsLoading(false)
-    }
-  }
-
-  // Add the password reset function
-  const handlePasswordReset = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!resetEmail.trim()) return
-    
-    setResetStatus('sending')
-    try {
-      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail.trim(), {
-        redirectTo: `${window.location.origin}/auth/update-password`,
-      })
-      
-      if (error) {
-        console.error('Password reset error:', error)
-        setResetStatus('error')
-      } else {
-        setResetStatus('success')
-      }
-    } catch (error) {
-      console.error('Password reset failed:', error)
-      setResetStatus('error')
-    }
-  }
-
-  // --- 5. ADD THIS LOADING/NULL CHECK ---
-  // This prevents the page from flashing while the redirect is happening
-  if (loading || user) {
+  // Loading check
+  if (authLoading || user) {
     return (
-      <div style={containerStyle}>
-        {/* You can put a loading spinner here if you want */}
+      <div style={{ ...containerStyle, backgroundColor: 'var(--bg-primary)', minHeight: '100dvh' }}>
+        <Loader2 size={32} className="animate-spin" />
       </div>
     );
   }
-  // --- END OF NEW LOADING CHECK ---
-
 
   return (
     <div style={containerStyle}>
       <div style={cardStyle}>
-        <div style={headerStyle}>
-          <h1 style={titleStyle}>Welcome to FocusFlow</h1>
-          <p style={subtitleStyle}>Your AI-powered productivity assistant</p>
+        
+        <button
+          onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
+          style={{
+            position: 'absolute',
+            top: '16px',
+            right: '16px',
+            background: 'var(--bg-tertiary)',
+            color: 'var(--text-tertiary)',
+            border: 'none',
+            borderRadius: '50%',
+            width: '32px',
+            height: '32px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer'
+          }}
+          title="Toggle theme"
+        >
+          {resolvedTheme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+        </button>
+
+        <div style={{ marginBottom: '32px' }}>
+          <h1 style={titleStyle}>{isLogin ? 'Welcome Back' : 'Create Account'}</h1>
+          <p style={subtitleStyle}>Sign in to continue to FocusFlow</p>
         </div>
 
-        <div>
-          <button 
-            style={googleButtonStyle} 
-            onClick={handleGoogleSignIn}
-            disabled={isLoading}
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24">
-              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-            </svg>
-            Sign in with Google
-          </button>
-
-          <p style={disclaimerStyle}>
-            By continuing, you agree to our Terms of Service and Privacy Policy.
-          </p>
-        </div>
+        {/* GOOGLE SIGN-IN COMMENTED OUT
+        ...
+        */ }
 
         <div style={formStyle}>
           <form onSubmit={handleEmailSubmit}>
@@ -309,9 +261,10 @@ export default function OnboardingPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 style={inputStyle}
-                placeholder="Enter your email"
+                placeholder="you@example.com"
                 required
                 disabled={isLoading}
+                autoComplete="email"
               />
             </div>
             
@@ -322,12 +275,12 @@ export default function OnboardingPage() {
                 type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                style={inputStyle}
-                placeholder="Enter your password"
+                style={{...inputStyle, paddingRight: '48px'}}
+                placeholder="••••••••"
                 required
                 disabled={isLoading}
                 minLength={6}
-                autoComplete="current-password"
+                autoComplete={isLogin ? "current-password" : "new-password"}
               />
               <button 
                 type="button" 
@@ -335,26 +288,35 @@ export default function OnboardingPage() {
                 onClick={() => setShowPassword(!showPassword)}
                 aria-label={showPassword ? "Hide password" : "Show password"}
               >
-                {showPassword ? (
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
-                    <line x1="1" y1="1" x2="23" y2="23"></line>
-                  </svg>
-                ) : (
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                    <circle cx="12" cy="12" r="3"></circle>
-                  </svg>
-                )}
+                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
               </button>
             </div>
+
+            {/* --- NEW: Confirm Password Field --- */}
+            {!isLogin && (
+              <div style={inputGroupStyle}>
+                <label htmlFor="confirm-password" style={labelStyle}>Confirm Password</label>
+                <input
+                  id="confirm-password"
+                  type={showPassword ? "text" : "password"}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  style={{...inputStyle, paddingRight: '48px'}}
+                  placeholder="••••••••"
+                  required
+                  disabled={isLoading}
+                  minLength={6}
+                  autoComplete="new-password"
+                />
+              </div>
+            )}
             
             <button 
               type="submit" 
               style={submitButtonStyle}
               disabled={isLoading}
             >
-              {isLoading ? 'Processing...' : (isLogin ? 'Sign In' : 'Create Account')}
+              {isLoading ? <Loader2 size={20} className="animate-spin" /> : (isLogin ? 'Sign In' : 'Create Account')}
             </button>
           </form>
           
@@ -373,36 +335,22 @@ export default function OnboardingPage() {
           {/* Password Reset Section */}
           {showResetPassword ? (
             <div style={{
-              backgroundColor: '#f8f9fa',
+              backgroundColor: 'var(--bg-secondary)',
               padding: '20px',
-              borderRadius: '12px',
+              borderRadius: 'var(--radius-md)',
               marginTop: '20px',
-              border: '1px solid #e9ecef'
+              border: '1px solid var(--border-light)'
             }}>
-              <h3 style={{ marginBottom: '16px', color: '#374151' }}>
+              <h3 style={{ marginBottom: '16px', color: 'var(--text-primary)', fontSize: 'var(--font-base)' }}>
                 Reset Password
               </h3>
               
               {resetStatus === 'success' ? (
-                <div style={{
-                  padding: '12px',
-                  backgroundColor: '#d1fae5',
-                  color: '#065f46',
-                  borderRadius: '8px',
-                  marginBottom: '16px',
-                  border: '1px solid #a7f3d0'
-                }}>
+                <div style={{...errorStyle, color: 'var(--accent-success)', backgroundColor: theme === 'dark' ? 'rgba(16, 185, 129, 0.1)' : '#f0fdf4', borderColor: theme === 'dark' ? '#10b981' : '#a7f3d0'}}>
                   ✅ Check your email for a password reset link!
                 </div>
               ) : resetStatus === 'error' ? (
-                <div style={{
-                  padding: '12px',
-                  backgroundColor: '#fee2e2',
-                  color: '#b91c1c',
-                  borderRadius: '8px',
-                  marginBottom: '16px',
-                  border: '1px solid #fecaca'
-                }}>
+                <div style={errorStyle}>
                   ❌ Failed to send reset email. Please try again.
                 </div>
               ) : null}
@@ -421,6 +369,7 @@ export default function OnboardingPage() {
                     placeholder="Enter your email"
                     required
                     disabled={resetStatus === 'sending'}
+                    autoComplete="email"
                   />
                 </div>
                 
@@ -428,17 +377,9 @@ export default function OnboardingPage() {
                   <button
                     type="submit"
                     disabled={resetStatus === 'sending' || !resetEmail.trim()}
-                    style={{
-                      padding: '10px 16px',
-                      backgroundColor: resetStatus === 'sending' ? '#9ca3af' : '#3b82f6',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '8px',
-                      cursor: resetStatus === 'sending' ? 'not-allowed' : 'pointer',
-                      flex: 1
-                    }}
+                    style={{...submitButtonStyle, flex: 1, marginBottom: 0, opacity: (resetStatus === 'sending' || !resetEmail.trim()) ? 0.7 : 1}}
                   >
-                    {resetStatus === 'sending' ? 'Sending...' : 'Send Reset Link'}
+                    {resetStatus === 'sending' ? <Loader2 size={20} className="animate-spin" /> : 'Send Link'}
                   </button>
                   
                   <button
@@ -449,12 +390,11 @@ export default function OnboardingPage() {
                       setResetEmail('')
                     }}
                     style={{
-                      padding: '10px 16px',
+                      ...submitButtonStyle,
+                      marginBottom: 0,
                       backgroundColor: 'transparent',
-                      color: '#6b7280',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '8px',
-                      cursor: 'pointer'
+                      color: 'var(--text-secondary)',
+                      border: '1px solid var(--border-medium)',
                     }}
                   >
                     Cancel
@@ -470,11 +410,12 @@ export default function OnboardingPage() {
                 marginTop: '16px',
                 padding: '10px 16px',
                 backgroundColor: 'transparent',
-                color: '#3b82f6',
+                color: 'var(--accent-primary)',
                 border: 'none',
                 cursor: 'pointer',
-                textDecoration: 'underline',
-                fontSize: '14px'
+                textDecoration: 'none',
+                fontSize: 'var(--font-sm)',
+                fontWeight: 500
               }}
             >
               Forgot your password?

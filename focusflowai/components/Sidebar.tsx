@@ -12,13 +12,13 @@ import { useSidebar } from '@/contexts/SidebarContext'
 import { 
   User, Bell, BarChart2, Settings, Volume2, Moon, Sun, 
   CloudRain, Waves, Trees, Flame, CloudLightning, Droplet, Bird, Wind,
-  ChevronDown, ChevronUp, X, Loader2
+  ChevronDown, ChevronUp, X, Loader2, LogOut
 } from 'lucide-react'
 
 export default function Sidebar() {
   const { resolvedTheme, setTheme } = useTheme()
   const { user } = useAuth()
-  const router = useRouter() // Keep router for sign-out redirect
+  const router = useRouter()
   const pathname = usePathname() 
   const { isSidebarOpen, toggleSidebar } = useSidebar()
 
@@ -33,14 +33,15 @@ export default function Sidebar() {
 
   const [isSoundListOpen, setIsSoundListOpen] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
-  const [isClient, setIsClient] = useState(false) // For hydration fix
+  const [isClient, setIsClient] = useState(false)
+  
+  // --- NEW: State for sign-out confirmation ---
+  const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
 
-  // Set isClient to true once the component mounts
   useEffect(() => {
     setIsClient(true)
   }, [])
 
-  // Fetch unread notification count
   useEffect(() => {
     if (!user) return;
     
@@ -60,7 +61,6 @@ export default function Sidebar() {
     };
     fetchUnreadCount();
     
-    // Listen for real-time changes to notifications
     const channel = supabase
       .channel('public:notifications')
       .on(
@@ -77,7 +77,6 @@ export default function Sidebar() {
     };
   }, [user]);
 
-  // Close sound list when sidebar closes
   useEffect(() => {
     if (!isSidebarOpen) {
       setIsSoundListOpen(false)
@@ -93,25 +92,30 @@ export default function Sidebar() {
     setIsSoundListOpen(!isSoundListOpen);
   }
 
-  // Simplified link click handler (navigation is done by <Link>)
   const handleLinkClick = () => {
     toggleSidebar()
   }
 
-  const handleSignOut = async () => {
+  // --- UPDATED: Renamed to handleConfirmSignOut and added modal logic ---
+  const handleConfirmSignOut = async () => {
     await supabase.auth.signOut();
+    setShowSignOutConfirm(false); // Close modal
     toggleSidebar(); // Close sidebar
     router.push('/onboarding'); // Redirect to login
   }
   
-  // Helper to get the correct sound icon
+  // --- NEW: Opens the confirmation modal ---
+  const handleSignOutClick = () => {
+    setShowSignOutConfirm(true);
+  }
+
   const getSoundIcon = (soundId: string) => {
     const props = { size: 20, style: { flexShrink: 0 } }
     switch (soundId) {
       case 'rain': return <CloudRain {...props} />;
       case 'waves': return <Waves {...props} />;
       case 'forest': return <Trees {...props} />;
-      case 'fire': return <Flame {...props} />; // Corrected from 'Fire'
+      case 'fire': return <Flame {...props} />;
       case 'thunder': return <CloudLightning {...props} />;
       case 'stream': return <Droplet {...props} />;
       case 'birds': return <Bird {...props} />;
@@ -122,7 +126,6 @@ export default function Sidebar() {
 
   // --- STYLES & DYNAMIC VARS ---
 
-  // Style for active/inactive navigation links
   const navItemStyle = (isActive: boolean) => ({
     display: 'flex',
     alignItems: 'center',
@@ -135,16 +138,14 @@ export default function Sidebar() {
     backgroundColor: isActive ? 'var(--bg-tertiary)' : 'transparent',
     fontWeight: isActive ? '600' : '400',
     color: isActive ? 'var(--accent-primary)' : 'var(--text-primary)',
-    textDecoration: 'none' // For Link component
+    textDecoration: 'none'
   })
 
-  // Dynamic theme variables for hydration fix
   const isDark = resolvedTheme === 'dark'
   const nextTheme = isDark ? 'light' : 'dark'
   const themeIcon = isDark ? <Moon size={20} /> : <Sun size={20} />
   const themeText = isDark ? "Dark Mode" : "Light Mode"
   
-  // Reusable inline spinner
   const inlineSpinner = (
     <Loader2 
       size={16}
@@ -155,7 +156,6 @@ export default function Sidebar() {
     />
   )
 
-  // Wrapper for theme icon to prevent layout shift
   const iconWrapperStyle = {
     width: '20px',
     height: '20px',
@@ -198,7 +198,6 @@ export default function Sidebar() {
           )}
 
           <nav className="sidebar-nav">
-            {/* --- UPDATED: Navigation items are now <Link> components --- */}
             <Link href="/profile" style={navItemStyle(pathname === '/profile')} onClick={handleLinkClick}>
               <User size={20} /> Profile
             </Link>
@@ -218,7 +217,6 @@ export default function Sidebar() {
               <Settings size={20} /> Preferences
             </Link>
             
-            {/* This one remains a button because it's an accordion */}
             <button 
               className="sidebar-nav-item"
               style={navItemStyle(pathname === '/calm-mode')}
@@ -281,7 +279,6 @@ export default function Sidebar() {
             )}
           </nav>
           
-          {/* --- UPDATED: Theme Toggle with Hydration Fix --- */}
           <div className="sidebar-theme-toggle">
             <span style={{
               fontSize: 'var(--font-sm)',
@@ -291,12 +288,10 @@ export default function Sidebar() {
               gap: '12px'
             }}>
               
-              {/* Icon Wrapper */}
               <span style={iconWrapperStyle}>
                 {isClient ? themeIcon : null}
               </span>
               
-              {/* Text Wrapper */}
               <span>
                 {isClient ? themeText : "Loading..."}
               </span>
@@ -316,15 +311,48 @@ export default function Sidebar() {
         
         {user && (
           <div className="sidebar-footer">
-            <button className="sidebar-signout-button" onClick={handleSignOut}>
+            {/* --- UPDATED: onClick now opens the modal --- */}
+            <button className="sidebar-signout-button" onClick={handleSignOutClick}>
+              <LogOut size={16} style={{ marginRight: '8px' }} />
               Sign Out
             </button>
           </div>
         )}
       </div>
       
-      {/* Styles for new elements */}
+      {/* --- NEW: Sign Out Confirmation Modal --- */}
+      {showSignOutConfirm && (
+        <div className="modal-overlay" style={{ zIndex: 1012 }}>
+          <div className="chat-confirm-modal">
+            <h2 className="chat-confirm-title">Sign Out?</h2>
+            <p className="chat-confirm-text">
+              Are you sure you want to sign out?
+            </p>
+            <div className="chat-confirm-buttons">
+              <button
+                className="chat-confirm-button chat-confirm-button-cancel"
+                onClick={() => setShowSignOutConfirm(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="chat-confirm-button chat-confirm-button-danger"
+                onClick={handleConfirmSignOut}
+              >
+                Sign Out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
       <style jsx>{`
+        /* --- UPDATED: Added styles for sign-out button icon --- */
+        .sidebar-signout-button {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
         @keyframes pulse {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.4; }

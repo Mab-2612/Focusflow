@@ -3,7 +3,7 @@
 
 // 1. Import React and the new icons
 import React, { useState, useEffect, useRef, useMemo } from 'react'
-import { Loader2, Frown, Sparkles, Copy, Edit } from 'lucide-react'
+import { Loader2, Frown, Sparkles, Copy, Edit } from 'lucide-react' // Added Copy, Edit
 import { useTheme } from '@/components/ThemeContext'
 import { useGoogleTTS } from '@/hooks/useGoogleTTS'
 import { useAuth } from '@/hooks/useAuth'
@@ -25,8 +25,11 @@ interface ApiHistoryItem {
   parts: { text: string }[]
 }
 
+// Removed ContextMenu interface
+
 const MAX_MESSAGES = 100;
 
+// --- Helper Functions (Moved inside component) ---
 export default function ChatPage() {
   const { theme } = useTheme()
   const { user } = useAuth()
@@ -44,7 +47,10 @@ export default function ChatPage() {
   const [showSearch, setShowSearch] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   
+  // Replaced contextMenu with selectedMessage
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
+  
+  // State for the new scroll button
   const [showScrollDown, setShowScrollDown] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -54,7 +60,7 @@ export default function ChatPage() {
 
   const { speak, stopSpeaking } = useGoogleTTS()
   
-  // --- Helper Functions ---
+  // --- All Helper Functions now live inside the component ---
   
   function parseMarkdown(text: string): string {
     if (!text) return '';
@@ -96,7 +102,18 @@ export default function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior });
   };
   
-  // --- Data Fetching ---
+  // --- End Helper Functions ---
+
+  const filteredMessages = useMemo(() => {
+    if (!searchTerm.trim()) {
+      return messages;
+    }
+    return messages.filter(msg =>
+      msg.content.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [messages, searchTerm]);
+  
+  // --- DATA FETCHING & REALTIME ---
 
   const fetchHistory = async (currentUser: User) => {
     setIsLoadingHistory(true);
@@ -154,7 +171,12 @@ export default function ChatPage() {
             if (newMessage.role === 'user' && tempMessageIdRef.current && prev.find(m => m.id === tempMessageIdRef.current)) {
               return prev.map(msg => 
                 msg.id === tempMessageIdRef.current
-                  ? { ...msg, id: newMessage.id, timestamp: new Date(newMessage.created_at) }
+                  ? {
+                      id: newMessage.id,
+                      role: newMessage.role,
+                      content: newMessage.content,
+                      timestamp: new Date(newMessage.created_at)
+                    }
                   : msg
               );
             } else {
@@ -180,21 +202,14 @@ export default function ChatPage() {
     };
   }, [user]);
 
-  const filteredMessages = useMemo(() => {
-    if (!searchTerm.trim()) {
-      return messages;
-    }
-    return messages.filter(msg =>
-      msg.content.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [messages, searchTerm]);
-
+  // Scroll to bottom *only* if not searching
   useEffect(() => {
     if (!searchTerm) {
-      scrollToBottom('auto');
+      scrollToBottom('auto'); // Use 'auto' for instant scroll on new message
     }
   }, [filteredMessages, searchTerm]);
   
+  // Focus input when processing stops
   useEffect(() => {
     if (!isProcessing) {
       const timer = setTimeout(() => {
@@ -202,8 +217,9 @@ export default function ChatPage() {
       }, 100);
       return () => clearTimeout(timer);
     }
-  }, [isProcessing]);
+  }, [isProcessing, messages]);
   
+  // Click outside to close icon toggles
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (messagesContainerRef.current && !messagesContainerRef.current.contains(event.target as Node)) {
@@ -214,7 +230,7 @@ export default function ChatPage() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // --- FIXED: Smoother scroll detection with buffer ---
+  // Scroll detection for "Scroll to Bottom" button
   useEffect(() => {
     const chatContainer = messagesContainerRef.current;
     
@@ -222,22 +238,24 @@ export default function ChatPage() {
       const container = messagesContainerRef.current;
       if (!container) return;
       const { scrollTop, scrollHeight, clientHeight } = container;
-      const distanceToBottom = scrollHeight - scrollTop - clientHeight;
-      
-      // Hysteresis: Buffer of 100px to prevent flickering
-      if (showScrollDown && distanceToBottom < 200) {
-        setShowScrollDown(false);
-      } else if (!showScrollDown && distanceToBottom > 300) {
-        setShowScrollDown(true);
-      }
+      const isScrolledUp = (scrollHeight - scrollTop - clientHeight) > 300;
+      setShowScrollDown(isScrolledUp);
     };
 
-    if (!chatContainer) return;
+    if (!chatContainer) {
+      return; // Do nothing if the container isn't rendered
+    }
 
     chatContainer.addEventListener('scroll', handleScroll);
-    return () => chatContainer.removeEventListener('scroll', handleScroll);
-  }, [isLoadingHistory, messages, showScrollDown]);
+    
+    return () => {
+      if (chatContainer) {
+        chatContainer.removeEventListener('scroll', handleScroll);
+      }
+    };
+  }, [isLoadingHistory, messages]); // Re-attach listener when messages load/change
 
+  // --- HANDLERS ---
   const addMessage = (message: Message) => {
     setMessages(prev => [...prev, message].slice(-MAX_MESSAGES));
   };
@@ -323,6 +341,9 @@ export default function ChatPage() {
     }
     const newState = !isTtsEnabled;
     setIsTtsEnabled(newState);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('ttsEnabled', String(newState));
+    }
   }
 
   const clearChat = () => {
@@ -344,21 +365,21 @@ export default function ChatPage() {
     }
   }
   
+  // New handlers for icons
   const handleCopy = (content: string) => {
     navigator.clipboard.writeText(content);
-    setSelectedMessage(null);
+    setSelectedMessage(null); // Close icons after action
   };
   const handleEdit = (content: string) => {
     setInputText(content);
     inputRef.current?.focus();
-    setSelectedMessage(null);
+    setSelectedMessage(null); // Close icons after action
   };
 
   // --- STYLES ---
   const containerStyle = {
     backgroundColor: 'var(--bg-primary)',
   }
-  // FIXED: Header is now fixed position
   const headerStyle = {
     backgroundColor: 'var(--bg-primary)',
     borderBottom: `1px solid var(--border-light)`,
@@ -367,13 +388,8 @@ export default function ChatPage() {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    position: 'fixed' as const,
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 50,
-    width: '100%',
-    transition: 'background-color 0.3s ease'
+    flexShrink: 0
+    // Removed sticky positioning, will be handled by CSS
   }
   const titleStyle = {
     fontSize: 'var(--font-lg)',
@@ -392,15 +408,15 @@ export default function ChatPage() {
     display: 'flex',
     flexDirection: 'column' as const,
     overflowY: 'auto',
-    // FIXED: Added padding top to account for fixed header
-    paddingTop: '70px',
+    // Dynamic padding to shrink gap with keyboard
     paddingBottom: isKeyboardOpen ? '8px' : '24px'
   }
   const messagesStyle = {
-    paddingTop: '10px',
+    paddingTop: '20px',
     display: 'flex',
     flexDirection: 'column' as const,
     gap: '12px',
+    // Dynamic padding to shrink gap with keyboard
     paddingBottom: isKeyboardOpen ? '10px' : '45px'
   }
   const floatingInputContainerStyle = {
@@ -408,29 +424,32 @@ export default function ChatPage() {
     bottom: isKeyboardOpen ? '0px' : '80px',
     left: '0',
     right: '0',
+    // Dynamic top padding
     paddingTop: isKeyboardOpen ? '8px' : '16px',
     paddingLeft: '24px',
     paddingRight: '24px',
     paddingBottom: 'max(16px, env(safe-area-inset-bottom))',
-    backgroundColor: 'transparent', // Ensure transparent
+    // Transparent background
+    backgroundColor: 'transparent',
+    background: 'transparent', 
     zIndex: 999,
     flexShrink: 0,
     transition: 'bottom 0.2s ease-out',
-    pointerEvents: 'none' as const
+    pointerEvents: 'none' as const // Let clicks pass through
   }
   const textInputWrapperStyle = {
     display: 'flex',
     alignItems: 'center',
     border: `1px solid var(--border-light)`,
     borderRadius: '24px', 
-    backgroundColor: 'var(--bg-secondary)',
+    backgroundColor: 'var(--bg-secondary)', // Input bar keeps its background
     paddingLeft: '16px',
     paddingRight: '6px',
     minHeight: '48px', 
     maxWidth: '800px',
     margin: '0 auto',
     boxShadow: 'var(--shadow-md)',
-    pointerEvents: 'auto' as const
+    pointerEvents: 'auto' as const // But the bar itself is clickable
   }
   const textInputStyle = {
     flex: 1,
@@ -472,19 +491,13 @@ export default function ChatPage() {
     fontSize: '20px',
     flexShrink: 0 
   }
-  // FIXED: Smooth transition container for Clear button
   const clearChatContainerStyle = {
     display: 'flex',
     justifyContent: 'center',
-    paddingBottom: '8px',
+    paddingBottom: '8px', // Tightened up
     maxWidth: '800px',
     margin: '0 auto',
-    pointerEvents: 'auto' as const,
-    height: '32px', // Fixed height to prevent jump
-    opacity: (messages.length > 0 && !showSearch && !isKeyboardOpen && !showScrollDown) ? 1 : 0,
-    transition: 'opacity 0.3s ease',
-    overflow: 'hidden', // Hide when opacity is 0 if needed, but keep layout space
-    visibility: (messages.length > 0 && !showSearch && !isKeyboardOpen && !showScrollDown) ? 'visible' as const : 'hidden' as const
+    pointerEvents: 'auto' as const // Clickable
   }
   const clearChatButtonStyle = {
     fontSize: '12px',
@@ -494,8 +507,7 @@ export default function ChatPage() {
     padding: '4px 12px',
     border: `1px solid var(--border-light)`,
     borderRadius: '6px',
-    backgroundColor: 'var(--bg-tertiary)',
-    cursor: 'pointer'
+    backgroundColor: 'var(--bg-tertiary)'
   }
   
   const searchBarStyle = {
@@ -506,11 +518,9 @@ export default function ChatPage() {
     backgroundColor: 'var(--bg-secondary)',
     borderBottom: `1px solid var(--border-light)`,
     flexShrink: 0,
-    position: 'fixed' as const, // Fixed like header
-    top: '65px', 
-    left: 0,
-    right: 0,
-    zIndex: 49 // Just below header
+    position: 'sticky' as const,
+    top: '65px', // Stick below the main header
+    zIndex: 899 // Below header, above content
   }
   const searchInputStyle = {
     flex: 1,
@@ -638,7 +648,7 @@ export default function ChatPage() {
             </div>
           )}
 
-          {/* --- Message List --- */}
+          {/* --- THIS IS THE FINAL RENDER LOOP --- */}
           {(() => {
             let lastMessageDate: string | null = null;
 
@@ -719,16 +729,18 @@ export default function ChatPage() {
       )}
 
       <div style={floatingInputContainerStyle}> 
-        {/* FIXED: Clear Chat button reserves space but hides gracefully */}
-        <div style={clearChatContainerStyle}>
-          <button
-            onClick={clearChat}
-            style={clearChatButtonStyle}
-            title="Clear Chat"
-          >
-            Clear Conversation
-          </button>
-        </div>
+        {/* "Clear Chat" button with new visibility logic */}
+        {messages.length > 0 && !showSearch && !isKeyboardOpen && !showScrollDown && (
+          <div style={clearChatContainerStyle}>
+            <button
+              onClick={clearChat}
+              style={clearChatButtonStyle}
+              title="Clear Chat"
+            >
+              Clear Conversation
+            </button>
+          </div>
+        )}
         <form onSubmit={handleTextSubmit}>
           <div style={textInputWrapperStyle}>
             <input
@@ -757,6 +769,8 @@ export default function ChatPage() {
           </div>
         </form>
       </div>
+      
+      {/* Removed old context menu */}
 
       {showClearConfirm && (
         <div className="modal-overlay">
