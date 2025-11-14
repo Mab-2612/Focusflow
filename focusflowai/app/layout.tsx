@@ -4,7 +4,8 @@ import { ThemeProvider } from '@/components/ThemeContext'
 import { SoundProvider } from '@/contexts/SoundContext'
 import AppProvider from '@/components/AppProvider'
 import { SidebarProvider } from '@/contexts/SidebarContext'
-import LayoutClient from '@/components/LayoutClient' // NEW: We'll create this
+import LayoutClient from '@/components/LayoutClient'
+import { FontSizeProvider } from '@/contexts/FontSizeContext' // <-- 1. IMPORT IT
 
 import './globals.css'
 
@@ -25,9 +26,11 @@ export default function RootLayout({
           <SoundProvider>
             <AppProvider>
               <SidebarProvider>
-                <LayoutClient>
-                  {children}
-                </LayoutClient>
+                <FontSizeProvider> {/* <-- 2. WRAP LayoutClient */}
+                  <LayoutClient>
+                    {children}
+                  </LayoutClient>
+                </FontSizeProvider> {/* <-- 3. CLOSE IT */}
               </SidebarProvider>
             </AppProvider>
           </SoundProvider>

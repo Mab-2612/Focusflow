@@ -7,6 +7,8 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/lib/supabase/client'
 import { useAnalyticsStore } from '@/lib/analyticsStore' 
+import { useFontSize } from '@/contexts/FontSizeContext' // 1. IMPORT useFontSize
+import { Loader2 } from "lucide-react" // 2. IMPORT Loader2
 
 interface UserPreferences {
   auto_break_enabled: boolean
@@ -16,8 +18,9 @@ interface UserPreferences {
   notifications_enabled: boolean
   default_view: 'dashboard' | 'voice' | 'pomodoro'
   sound_effects: boolean
-  dark_mode?: boolean
+  dark_mode?: boolean // This is still here to read from DB
   daily_focus_goal?: number
+  fontSize?: 'small' | 'default' | 'large' // This is here to read from DB
 }
 
 const DEFAULT_PREFERENCES: UserPreferences = {
@@ -29,25 +32,25 @@ const DEFAULT_PREFERENCES: UserPreferences = {
   default_view: 'dashboard',
   sound_effects: true,
   dark_mode: false,
-  daily_focus_goal: 1
+  daily_focus_goal: 1,
+  fontSize: 'default'
 }
 
 export default function PreferencesPage() {
-  const { theme, toggleTheme, setTheme } = useTheme()
+  const { theme, setTheme, resolvedTheme } = useTheme()
+  const { fontSize, setFontSize } = useFontSize() // 3. USE the font size context
   const { user } = useAuth()
   const [isMounted, setIsMounted] = useState(false)
-  const { loadUserAnalytics } = useAnalyticsStore()
+  const { loadUserAnalytics } = useAnalyticsStore() 
   
-  const [preferences, setPreferences] = useState<UserPreferences>(DEFAULT_PREFERENCES)
+  // This state now *only* holds preferences not managed by a context
+  const [preferences, setPreferences] = useState(DEFAULT_PREFERENCES)
   
   const [isSaving, setIsSaving] = useState(false)
-  
-  // FIXED: Replaced saveStatus with toast state
   const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' | 'info' } | null>(null)
-  
   const [showResetConfirm, setShowResetConfirm] = useState(false)
 
-  // --- Styles (no changes) ---
+  // --- Styles ---
   const containerStyle = {
     minHeight: '100vh',
     backgroundColor: theme === 'dark' ? '#111827' : '#f9fafb',
@@ -116,7 +119,11 @@ export default function PreferencesPage() {
     fontSize: '16px',
     fontWeight: '600',
     opacity: isSaving ? 0.7 : 1,
-    width: '100%'
+    width: '100%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: '48px'
   }
   const resetButtonStyle = {
     padding: '12px 24px',
@@ -131,6 +138,27 @@ export default function PreferencesPage() {
     width: '100%',
     marginTop: '12px'
   }
+
+  // --- NEW: Style for the text size selector ---
+  const selectorGroupStyle = {
+    display: 'flex',
+    borderRadius: 'var(--radius-md)',
+    border: `1px solid var(--border-medium)`,
+    overflow: 'hidden',
+    width: '100%'
+  }
+
+  const selectorButtonStyle = (isActive: boolean) => ({
+    flex: 1,
+    padding: '12px',
+    border: 'none',
+    backgroundColor: isActive ? 'var(--accent-primary)' : 'var(--bg-secondary)',
+    color: isActive ? 'white' : 'var(--text-primary)',
+    cursor: 'pointer',
+    fontSize: 'var(--font-sm)',
+    fontWeight: '500' as const,
+    transition: 'all 0.2s ease'
+  })
   
   const isValidUUID = (uuid: string): boolean => {
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -144,7 +172,6 @@ export default function PreferencesPage() {
     }
   }, [user])
 
-  // FIXED: New function to show toast messages
   const showToast = (message: string, type: 'success' | 'error' | 'info') => {
     setToast({ message, type });
     setTimeout(() => {
@@ -152,6 +179,7 @@ export default function PreferencesPage() {
     }, 3000); // Hide after 3 seconds
   }
 
+  // This loads preferences ONCE on page load
   const loadUserPreferences = async () => {
     if (!user) return
     
@@ -167,40 +195,44 @@ export default function PreferencesPage() {
         .eq('user_id', user.id)
         .single()
       
-      if (error) {
-        if (error.code === 'PGRST116') {
-          await createDefaultPreferences();
-        }
+      if (error && error.code !== 'PGRST116') { // PGRST116 = no row
+        console.error('Error loading preferences:', error)
         return;
       }
       
-      if (data && data.preferences) {
-        const loadedPreferences = {
-          ...DEFAULT_PREFERENCES, 
-          ...data.preferences,
-          break_duration: Number(data.preferences.break_duration) || DEFAULT_PREFERENCES.break_duration,
-          work_duration: Number(data.preferences.work_duration) || DEFAULT_PREFERENCES.work_duration,
-          long_break_duration: Number(data.preferences.long_break_duration) || DEFAULT_PREFERENCES.long_break_duration,
-          daily_focus_goal: Number(data.preferences.daily_focus_goal) || DEFAULT_PREFERENCES.daily_focus_goal
-        }
-        setPreferences(loadedPreferences)
-      } else {
-        await createDefaultPreferences();
+      const loadedPreferences = {
+        ...DEFAULT_PREFERENCES, 
+        ...(data?.preferences || {}),
+        break_duration: Number(data?.preferences?.break_duration) || DEFAULT_PREFERENCES.break_duration,
+        work_duration: Number(data?.preferences?.work_duration) || DEFAULT_PREFERENCES.work_duration,
+        long_break_duration: Number(data?.preferences?.long_break_duration) || DEFAULT_PREFERENCES.long_break_duration,
+        daily_focus_goal: Number(data?.preferences?.daily_focus_goal) || DEFAULT_PREFERENCES.daily_focus_goal
       }
+      
+      // Set local state for non-context items
+      setPreferences(loadedPreferences)
+
+      // Set context-managed items
+      setTheme(loadedPreferences.theme || 'light')
+      setFontSize(loadedPreferences.fontSize || 'default')
+
     } catch (error) {
       console.error('Error loading preferences:', error)
     }
   }
 
+  // This creates defaults if no preferences exist
   const createDefaultPreferences = async () => {
     if (!user) return
     
     try {
       const prefsToSave = {
         ...DEFAULT_PREFERENCES,
-        dark_mode: theme === 'dark'
+        dark_mode: resolvedTheme === 'dark',
+        theme: theme,
+        fontSize: fontSize
       }
-      setPreferences(prefsToSave);
+      setPreferences(prefsToSave); // Set local state
 
       await supabase
         .from('user_preferences')
@@ -216,54 +248,81 @@ export default function PreferencesPage() {
     }
   }
 
+  // This function now *only* saves preferences managed by local state
+  // Theme and Font Size are saved instantly by their contexts
   const savePreferences = async (isReset: boolean = false) => {
     if (!user) return
     
     setIsSaving(true)
+    let prefsToSave = { ...preferences };
+
+    if (isReset) {
+      prefsToSave = DEFAULT_PREFERENCES;
+      setPreferences(DEFAULT_PREFERENCES); 
+      // Reset context-managed state
+      setTheme('light');
+      setFontSize('default');
+    }
 
     try {
-      let preferencesToSave: UserPreferences; 
-  
-      if (isReset) {
-        preferencesToSave = { ...DEFAULT_PREFERENCES, dark_mode: false };
-        setPreferences(preferencesToSave); 
-        setTheme('system');
-      } else {
-        preferencesToSave = {
-          ...preferences,
-          dark_mode: theme === 'dark'
-        }
-      }
+      // We must merge with existing preferences to not overwrite theme/font
+      const { data: existingData, error: fetchError } = await supabase
+        .from('user_preferences')
+        .select('preferences')
+        .eq('user_id', user.id)
+        .single();
+
+      if (fetchError && fetchError.code !== 'PGRST116') throw fetchError;
+
+      const newPreferences = {
+        ...(existingData?.preferences || {}),
+        auto_break_enabled: prefsToSave.auto_break_enabled,
+        break_duration: prefsToSave.break_duration,
+        work_duration: prefsToSave.work_duration,
+        long_break_duration: prefsToSave.long_break_duration,
+        notifications_enabled: prefsToSave.notifications_enabled,
+        default_view: prefsToSave.default_view,
+        sound_effects: prefsToSave.sound_effects,
+        daily_focus_goal: prefsToSave.daily_focus_goal,
+        // Also update these from contexts, just in case
+        theme: isReset ? 'light' : theme,
+        dark_mode: isReset ? false : resolvedTheme === 'dark',
+        fontSize: isReset ? 'default' : fontSize
+      };
 
       const { error } = await supabase
         .from('user_preferences')
         .upsert({
           user_id: user.id,
-          preferences: preferencesToSave,
+          preferences: newPreferences,
           updated_at: new Date().toISOString()
         }, {
           onConflict: 'user_id'
         })
       
       if (error) {
-        showToast('Error saving preferences.', 'error') // FIXED: Show toast
-      } else {
-        if (isReset) {
-          showToast('Preferences reset to default!', 'info') // FIXED: Show toast
-        } else {
-          showToast('Preferences saved!', 'success') // FIXED: Show toast
-        }
-        if (user) {
-          loadUserAnalytics(user.id);
-        }
+        throw error;
       }
+      
+      if (isReset) {
+        showToast('Preferences reset to default!', 'info')
+      } else {
+        showToast('Preferences saved!', 'success')
+      }
+      
+      if (user) {
+        loadUserAnalytics(user.id); // Refresh analytics with new goal
+      }
+
     } catch (error) {
-      showToast('An unexpected error occurred.', 'error') // FIXED: Show toast
+      console.error('Error saving preferences:', error)
+      showToast('An error occurred while saving.', 'error')
     } finally {
       setIsSaving(false)
     }
   }
 
+  // This function updates *only* the local state for Pomodoro settings
   const updatePreferencesInState = (key: keyof UserPreferences, value: any) => {
     if (['break_duration', 'work_duration', 'long_break_duration', 'daily_focus_goal'].includes(key)) {
       value = parseInt(value)
@@ -274,12 +333,6 @@ export default function PreferencesPage() {
       ...prev,
       [key]: value
     }))
-
-    if (key === 'dark_mode') {
-      if (value !== (theme === 'dark')) {
-        toggleTheme()
-      }
-    }
   }
   
   const handleResetDefaults = () => {
@@ -287,17 +340,23 @@ export default function PreferencesPage() {
   }
 
   const handleConfirmReset = () => {
-    savePreferences(true);
+    savePreferences(true); // Call save with reset flag
     setShowResetConfirm(false);
   }
 
   if (!isMounted) {
-    // ...
+    return (
+      <div style={containerStyle}>
+        <div className="page-container" style={{ textAlign: 'center' }}>
+          <Loader2 size={32} className="animate-spin" />
+        </div>
+        <Navbar />
+      </div>
+    )
   }
 
   return (
     <div style={containerStyle}>
-      {/* FIXED: New Toast Notification */}
       {toast && (
         <div className={`toast-container ${toast.type}`}>
           <div className="toast-message">
@@ -312,11 +371,36 @@ export default function PreferencesPage() {
       <div className="page-container">
         <h1 style={titleStyle}>Preferences</h1>
         
-        {/* FIXED: Removed old status messages */}
-
         <div>
           <div style={sectionStyle}>
-            <h2 style={sectionTitleStyle}>Focus Preferences</h2>
+            {/* --- 4. ADDED TEXT SIZE SECTION --- */}
+            <h2 style={sectionTitleStyle}>Appearance</h2>
+            <div style={inputGroupStyle}>
+              <label style={labelStyle}>Text Size</label>
+              <div style={selectorGroupStyle}>
+                <button 
+                  style={selectorButtonStyle(fontSize === 'small')}
+                  onClick={() => setFontSize('small')}
+                >
+                  Small
+                </button>
+                <button 
+                  style={selectorButtonStyle(fontSize === 'default')}
+                  onClick={() => setFontSize('default')}
+                >
+                  Default
+                </button>
+                <button 
+                  style={selectorButtonStyle(fontSize === 'large')}
+                  onClick={() => setFontSize('large')}
+                >
+                  Large
+                </button>
+              </div>
+            </div>
+            {/* --- END OF NEW SECTION --- */}
+            
+            <h2 style={{...sectionTitleStyle, marginTop: '24px'}}>Focus Preferences</h2>
             
             <div style={toggleContainerStyle}>
               <span style={toggleLabelStyle}>Auto Start Breaks</span>
@@ -396,7 +480,7 @@ export default function PreferencesPage() {
           </div>
 
           <button onClick={() => savePreferences(false)} style={saveButtonStyle} disabled={isSaving}>
-            {isSaving ? 'Saving...' : 'Save Preferences'}
+            {isSaving ? <Loader2 size={20} className="animate-spin" /> : 'Save Preferences'}
           </button>
           
           <button onClick={handleResetDefaults} style={resetButtonStyle} disabled={isSaving}>

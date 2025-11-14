@@ -40,6 +40,13 @@
   --transition: all 0.2s ease-in-out;
 }
 
+[data-font-size="small"] {
+  font-size: 14px;
+}
+[data-font-size="large"] {
+  font-size: 18px;
+}
+
 [data-theme="dark"] {
   --bg-primary: #111827;
   --bg-secondary: #1f2937;
