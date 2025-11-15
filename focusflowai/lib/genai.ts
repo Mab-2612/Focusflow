@@ -1,4 +1,4 @@
-// lib/genai.ts
+// lib/genai.ts.
 
 "use client";
 
